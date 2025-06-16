@@ -19,6 +19,7 @@ interface ComponentTileGridProps {
   buttonLabel?: string
   buttonRender?: (component: ComponentTile) => React.ReactNode
   tileClassName?: string
+  showAddButton?: boolean
 }
 
 export const ComponentTileGrid: React.FC<ComponentTileGridProps> = ({
@@ -27,6 +28,7 @@ export const ComponentTileGrid: React.FC<ComponentTileGridProps> = ({
   buttonLabel = "Add",
   buttonRender,
   tileClassName = "",
+  showAddButton = true,
 }) => {
   return (
     <div className="grid grid-cols-2 gap-4">
@@ -47,7 +49,7 @@ export const ComponentTileGrid: React.FC<ComponentTileGridProps> = ({
             <div className="text-xs text-gray-500 w-full">€{component.price.toFixed(2)}</div>
             {component.extra}
             <div className="w-full flex justify-center mt-auto pt-2">
-              {buttonRender ? (
+              {showAddButton && (buttonRender ? (
                 buttonRender(component)
               ) : (
                 <Badge 
@@ -58,7 +60,7 @@ export const ComponentTileGrid: React.FC<ComponentTileGridProps> = ({
                   <Plus className="w-3 h-3 flex-shrink-0" />
                   <span className="text-xs truncate">{buttonLabel}</span>
                 </Badge>
-              )}
+              ))}
             </div>
           </CardContent>
         </Card>

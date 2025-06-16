@@ -21,6 +21,11 @@ interface ComponentFormProps {
   editingComponent?: ComponentData | null
 }
 
+// Extend FileData to include url for backend compatibility
+interface BackendFileData extends FileData {
+  url?: string;
+}
+
 // Make sure this is exported as a named export
 export function ComponentForm({ onComponentSaved, editingComponent }: ComponentFormProps) {
   const [formData, setFormData] = useState({
@@ -67,17 +72,26 @@ export function ComponentForm({ onComponentSaved, editingComponent }: ComponentF
   const loadUploadedFiles = async () => {
     try {
       setIsLoadingFiles(true)
-      await db.init()
-
-      // Since we're using an in-memory database, return empty array for now
-      // In a real implementation, this would fetch from IndexedDB or server
-      setUploadedFiles([])
-
-      console.log("ComponentForm: File loading completed (in-memory mode)")
+      // Fetch files from backend API
+      const res = await fetch('/api/files')
+      if (!res.ok) throw new Error('Failed to fetch files')
+      let files = await res.json()
+      // Add type property for compatibility with file browser
+      files = files.map((file: any) => ({
+        ...file,
+        type: file.mimetype && file.mimetype.startsWith('model/') ? 'model3d'
+          : file.mimetype && file.mimetype.startsWith('image/') ? 'image'
+          : file.filename.match(/\.(obj|igs|iges|step|stp)$/i) ? 'model3d'
+          : file.filename.match(/\.(jpg|jpeg|png|gif|bmp|webp)$/i) ? 'image'
+          : undefined,
+      }))
+      setUploadedFiles(files)
+      setUploadStatus("")
+      console.log("ComponentForm: File loading completed from backend API")
     } catch (error) {
       console.error("Error loading files:", error)
       setUploadedFiles([]) // Fallback to empty array
-      setUploadStatus("File browser not available in demo mode")
+      setUploadStatus("File browser not available (API error)")
     } finally {
       setIsLoadingFiles(false)
     }
@@ -141,58 +155,41 @@ export function ComponentForm({ onComponentSaved, editingComponent }: ComponentF
   }
 
   // Select file from browser
-  const selectFile = (file: FileData) => {
+  const selectFile = (file: BackendFileData) => {
     if (fileBrowserType === "image") {
-      setImageUrl(file.data)
-      setImagePreview(file.data)
+      setImageUrl(file.url || file.data)
+      setImagePreview(file.url || file.data)
       setImageMethod("url")
     } else if (fileBrowserType === "cardImage") {
-      setCardImageUrl(file.data)
-      setCardImagePreview(file.data)
+      setCardImageUrl(file.url || file.data)
+      setCardImagePreview(file.url || file.data)
       setCardImageMethod("url")
     } else if (fileBrowserType === "model3d") {
-      setModelUrl(`db://${file.id}`) // Use database reference
+      setModelUrl(file.url ? file.url : `db://${file.id}`)
       setModelMethod("url")
       setSaveStatus(`Selected 3D model: ${file.filename}`)
     }
     setShowFileBrowser(false)
   }
 
-  // Save file to database and return blob URL
+  const uploadFileToBackend = async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch('/api/files', {
+      method: 'POST',
+      body: formData,
+    });
+    if (!res.ok) throw new Error('Upload failed');
+    return await res.json(); // Should contain { url, ... }
+  };
+
   const saveFileToDatabase = async (
     file: File,
     componentId: string,
     fileType: "image" | "model3d",
   ): Promise<string> => {
-    const fileId = `${componentId}-${fileType}-${Date.now()}`
-
-    // Convert file to base64 for storage
-    const base64Data = await new Promise<string>((resolve) => {
-      const reader = new FileReader()
-      reader.onload = () => {
-        const result = reader.result as string
-        resolve(result)
-      }
-      reader.readAsDataURL(file)
-    })
-
-    const fileData: FileData = {
-      id: fileId,
-      componentId,
-      type: fileType,
-      data: base64Data, // Store as base64
-      filename: file.name,
-      mimeType: file.type,
-      createdAt: new Date(),
-    }
-
-    await db.saveFile(fileData)
-
-    // Add to local state for immediate use
-    setUploadedFiles((prev) => [...prev, fileData])
-
-    // Return a reference that can be used to retrieve the file
-    return `db://${fileId}`
+    const backendFile = await uploadFileToBackend(file);
+    return backendFile.url;
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -335,7 +332,7 @@ export function ComponentForm({ onComponentSaved, editingComponent }: ComponentF
             </div>
             <div>
               <Label htmlFor="type">Component Type</Label>
-              <Select value={formData.type} onValueChange={(value) => setFormData({ ...formData, type: value })}>
+              <Select value={formData.type as ComponentData["type"]} onValueChange={(value) => setFormData({ ...formData, type: value as ComponentData["type"] })}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -592,12 +589,12 @@ export function ComponentForm({ onComponentSaved, editingComponent }: ComponentF
                   // Invalid JSON, keep the text but don't update formData
                 }
               }}
-              placeholder='{"power": "12W", "voltage": "24V", "beam_angle": "30°", "color_temperature": "3000K"}'
+              placeholder='{"power": "12W", "voltage": "24V", "beam_angle": "30°"}'
               rows={4}
             />
             <p className="text-xs text-gray-500 mt-1">
               Enter technical specifications as JSON format. Example:{" "}
-              {('power": "12W', 'voltage": "24V', 'beam_angle": "30°')}
+              {'{"power": "12W", "voltage": "24V", "beam_angle": "30°"}'}
             </p>
           </div>
 
@@ -648,7 +645,7 @@ export function ComponentForm({ onComponentSaved, editingComponent }: ComponentF
                 <div className="mb-4 text-xs text-gray-500">
                   Debug: Total files: {uploadedFiles.length}, Looking for type: {fileBrowserType}, Filtered files:{" "}
                   {
-                    uploadedFiles.filter((file) => {
+                    uploadedFiles.filter((file: BackendFileData) => {
                       console.log(`File: ${file.filename}, Type: ${file.type}, Browser type: ${fileBrowserType}`)
                       if (fileBrowserType === "model3d") {
                         return file.type === "model3d" || file.filename.match(/\.(obj|igs|iges|step|stp)$/i)
@@ -660,7 +657,7 @@ export function ComponentForm({ onComponentSaved, editingComponent }: ComponentF
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                   {uploadedFiles
-                    .filter((file) => {
+                    .filter((file: BackendFileData) => {
                       // More flexible filtering based on filename and type
                       if (fileBrowserType === "model3d") {
                         return file.type === "model3d" || file.filename.match(/\.(obj|igs|iges|step|stp)$/i)
@@ -668,7 +665,7 @@ export function ComponentForm({ onComponentSaved, editingComponent }: ComponentF
                         return file.type === "image" || file.filename.match(/\.(jpg|jpeg|png|gif|bmp|webp)$/i)
                       }
                     })
-                    .map((file) => (
+                    .map((file: BackendFileData) => (
                       <div
                         key={file.id}
                         className="border rounded-md p-2 cursor-pointer hover:border-blue-500 hover:bg-blue-50 transition-colors"
@@ -677,13 +674,13 @@ export function ComponentForm({ onComponentSaved, editingComponent }: ComponentF
                         <div className="aspect-square overflow-hidden rounded mb-2">
                           {file.type === "image" || file.filename.match(/\.(jpg|jpeg|png|gif|bmp|webp)$/i) ? (
                             <img
-                              src={file.data || "/placeholder.svg"}
+                              src={file.url || file.data || "/placeholder.svg"}
                               alt={file.filename}
                               className="w-full h-full object-cover"
                             />
                           ) : (
                             <ModelPreview
-                              modelData={file.data}
+                              modelData={file.url || file.data}
                               filename={file.filename}
                               className="w-full h-full rounded"
                             />

@@ -18,7 +18,7 @@ export function FileUpload({ onFilesSelected }: FileUploadProps) {
   const [selectedFiles, setSelectedFiles] = useState<File[]>([])
   const [uploadStatus, setUploadStatus] = useState<string>("")
   const [isDragOver, setIsDragOver] = useState(false)
-  const [processedFiles, setProcessedFiles] = useState<{ name: string; success: boolean }[]>([])
+  const [processedFiles, setProcessedFiles] = useState<{ name: string; success: boolean; url?: string }[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleFileSelection = (files: FileList | null) => {
@@ -83,111 +83,49 @@ export function FileUpload({ onFilesSelected }: FileUploadProps) {
     fileInputRef.current?.click()
   }
 
+  const uploadFileToBackend = async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch('/api/files', {
+      method: 'POST',
+      body: formData,
+    });
+    if (!res.ok) throw new Error('Upload failed');
+    return await res.json(); // Should contain { url, ... }
+  };
+
   const handleUpload = async () => {
     if (selectedFiles.length === 0) {
       setUploadStatus("Please select files to upload")
       return
     }
-
-    setUploadStatus("Processing files...")
+    setUploadStatus("Uploading files...")
     setProcessedFiles([])
-
     try {
       let processedCount = 0
       const results = []
-
       for (let i = 0; i < selectedFiles.length; i++) {
         const file = selectedFiles[i]
-        console.log(`Processing file ${i + 1}/${selectedFiles.length}: ${file.name}`)
-
         try {
           if (FileProcessor.validateFile(file)) {
-            // For 3D models
-            if (
-              file.name.endsWith(".obj") ||
-              file.name.endsWith(".igs") ||
-              file.name.endsWith(".iges") ||
-              file.name.endsWith(".step") ||
-              file.name.endsWith(".stp")
-            ) {
-              // Save directly to database
-              await saveFileToDatabase(file, "model3d")
-              results.push({ name: file.name, success: true })
-              processedCount++
-            }
-            // For archives
-            else if (file.name.endsWith(".zip") || file.name.endsWith(".rar")) {
-              const processedFiles = await FileProcessor.processRarFile(file)
-
-              // Save each extracted file
-              for (const extractedFile of processedFiles) {
-                const extractedFileType = extractedFile.name.match(/\.(obj|igs|iges|step|stp)$/i) ? "model3d" : "image"
-                await saveFileToDatabase(extractedFile, extractedFileType)
-                results.push({ name: extractedFile.name, success: true })
-              }
-
-              processedCount++
-            }
-            // For images
-            else if (file.type.startsWith("image/") || file.name.match(/\.(jpg|jpeg|png|gif|bmp|webp)$/i)) {
-              await saveFileToDatabase(file, "image")
-              results.push({ name: file.name, success: true })
-              processedCount++
-            }
+            const backendFile = await uploadFileToBackend(file)
+            results.push({ name: file.name, success: true, url: backendFile.url })
+            processedCount++
           } else {
             results.push({ name: file.name, success: false })
-            console.warn(`Skipping unsupported file: ${file.name}`)
           }
         } catch (error) {
           results.push({ name: file.name, success: false })
-          console.error(`Error processing file ${file.name}:`, error)
+          console.error(`Error uploading file ${file.name}:`, error)
         }
-
         setUploadStatus(`Processed ${i + 1}/${selectedFiles.length} files (${processedCount} successful)`)
         setProcessedFiles(results)
       }
-
-      setUploadStatus(`Completed: ${processedCount}/${selectedFiles.length} files processed successfully`)
+      setUploadStatus(`Completed: ${processedCount}/${selectedFiles.length} files uploaded successfully`)
     } catch (error) {
       console.error("Upload error:", error)
-      setUploadStatus(`Error processing files: ${error}`)
+      setUploadStatus(`Error uploading files: ${error}`)
     }
-  }
-
-  const saveFileToDatabase = async (file: File, fileType: "image" | "model3d") => {
-    const fileId = `file-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`
-
-    // Convert file to base64 for storage
-    const base64Data = await new Promise<string>((resolve) => {
-      const reader = new FileReader()
-      reader.onload = () => {
-        const result = reader.result as string
-        resolve(result)
-      }
-      reader.readAsDataURL(file)
-    })
-
-    // Determine file type more accurately
-    let actualFileType: "image" | "model3d" = fileType
-    if (file.type.startsWith("image/")) {
-      actualFileType = "image"
-    } else if (file.name.match(/\.(obj|igs|iges|step|stp)$/i)) {
-      actualFileType = "model3d"
-    }
-
-    const fileData = {
-      id: fileId,
-      componentId: "library", // Generic library file not tied to a specific component yet
-      type: actualFileType,
-      data: base64Data,
-      filename: file.name,
-      mimeType: file.type,
-    }
-
-    await db.saveFile(fileData)
-
-    console.log(`File saved to database: ${file.name} (${fileId}) as type: ${actualFileType}`)
-    return fileId
   }
 
   return (
@@ -204,6 +142,7 @@ export function FileUpload({ onFilesSelected }: FileUploadProps) {
           accept=".obj,.igs,.iges,.step,.stp,.rar,.zip,application/zip,application/x-rar-compressed,application/octet-stream,text/plain,image/*"
           onChange={handleFileInputChange}
           style={{ display: "none" }}
+          aria-label="File upload input"
         />
 
         {/* Drag and drop area */}

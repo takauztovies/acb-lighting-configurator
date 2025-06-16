@@ -56,7 +56,6 @@ export function ConfiguratorSidebar() {
           specifications: {
             description: bundle.description,
             components: bundle.components,
-            discount: `${bundle.discountPercentage}%`,
           },
           position: [0, 0, 0] as [number, number, number],
           rotation: [0, 0, 0] as [number, number, number],
@@ -98,43 +97,32 @@ export function ConfiguratorSidebar() {
   }
 
   const addComponent = (component: ExtendedLightComponent) => {
-    if (component.type === "bundle" && component.bundleData) {
-      // For bundles, add all the components in the bundle
+    if (component.bundleData) {
+      // For bundles, add all the components in the bundle (once each)
       const bundleData = component.bundleData
       let addedCount = 0
-
-      // Get the original components from the bundle
-      bundleData.components.forEach(async (item) => {
+      bundleData.components.forEach((componentId) => {
         try {
-          // Find the component in the available components
-          const componentToAdd = state.availableComponents.find((c) => c.id === item.componentId)
-
+          const componentToAdd = state.availableComponents.find((c) => c.id === componentId)
           if (componentToAdd) {
-            // Add each component the specified number of times
-            for (let i = 0; i < item.quantity; i++) {
-              const newComponent = {
-                ...componentToAdd,
-                id: `${componentToAdd.id}-${Date.now()}-${i}`,
-                position: [
-                  Math.random() * 4 - 2 + i * 0.5, // Spread components out
-                  0.5,
-                  Math.random() * 4 - 2 + i * 0.5,
-                ] as [number, number, number],
-                rotation: [0, 0, 0] as [number, number, number],
-                connections: [],
-                connectionPoints: [],
-              }
-              dispatch({ type: "ADD_COMPONENT", component: newComponent })
-              addedCount++
+            const newComponent = {
+              ...componentToAdd,
+              id: `${componentToAdd.id}-${Date.now()}`,
+              position: [Math.random() * 4 - 2, 0.5, Math.random() * 4 - 2] as [number, number, number],
+              rotation: [0, 0, 0] as [number, number, number],
+              connections: [],
+              connectionPoints: [],
+              scale: [1, 1, 1] as [number, number, number],
             }
+            dispatch({ type: "ADD_COMPONENT", component: newComponent })
+            addedCount++
           } else {
-            console.warn(`Component ${item.componentId} not found in available components`)
+            console.warn(`Component ${componentId} not found in available components`)
           }
         } catch (error) {
-          console.error(`Error adding component ${item.componentId} from bundle:`, error)
+          console.error(`Error adding component ${componentId} from bundle:`, error)
         }
       })
-
       console.log(`Bundle "${component.name}" added ${addedCount} components to configuration`)
     } else {
       // Regular component handling
@@ -145,6 +133,7 @@ export function ConfiguratorSidebar() {
         rotation: [0, 0, 0] as [number, number, number],
         connections: [],
         connectionPoints: [],
+        scale: [1, 1, 1] as [number, number, number],
       }
       dispatch({ type: "ADD_COMPONENT", component: newComponent })
     }
@@ -267,20 +256,24 @@ export function ConfiguratorSidebar() {
               </CardHeader>
               <CardContent className="space-y-2">
                 <ComponentTileGrid
-                  components={allComponents.map((component) => ({
-                    id: component.id,
-                    name: component.name,
-                    image: component.image,
-                    price: component.price,
-                    type: component.type,
-                    extra: component.type === "bundle" ? (
-                      <Badge variant="secondary" className="text-xs">{t("bundle")}</Badge>
-                    ) : null,
-                  }))}
+                  components={allComponents.map((component) => {
+                    const isBundle = Boolean((component as ExtendedLightComponent).bundleData)
+                    return {
+                      id: component.id,
+                      name: component.name,
+                      image: component.image,
+                      price: component.price,
+                      type: component.type,
+                      extra: isBundle ? (
+                        <Badge variant="secondary" className="text-xs">{t("bundle")}</Badge>
+                      ) : null,
+                    }
+                  })}
                   onSelect={(component) => {
                     const found = allComponents.find((c) => c.id === component.id)
-                    if (found) addComponent(found)
+                    if (found) addComponent(found as ExtendedLightComponent)
                   }}
+                  showAddButton={false}
                 />
               </CardContent>
             </Card>

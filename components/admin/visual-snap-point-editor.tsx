@@ -180,8 +180,7 @@ function ClickableComponent3D({
   const [hoverPoint, setHoverPoint] = useState<THREE.Vector3 | null>(null)
 
   // Ensure component has valid position
-  const componentPosition =
-    Array.isArray(component.position) && component.position.length === 3 ? component.position : [0, 0, 0]
+  const componentPosition: [number, number, number] = [0, 0, 0]
 
   useFrame(() => {
     if (isPlacementMode && meshRef.current) {
@@ -213,7 +212,7 @@ function ClickableComponent3D({
   const validSnapPoints = snapPoints.filter(isValidSnapPoint)
 
   return (
-    <group ref={meshRef} position={componentPosition} onClick={handleClick}>
+    <group ref={meshRef} position={componentPosition as readonly [number, number, number]} onClick={handleClick}>
       {/* Render a simple box for the component */}
       <mesh userData={{ componentId: component.id }}>
         <boxGeometry args={[1, 0.5, 0.3]} />
@@ -226,8 +225,10 @@ function ClickableComponent3D({
 
       {/* Show existing snap points */}
       {validSnapPoints.map((snapPoint) => {
-        const snapPos =
-          Array.isArray(snapPoint.position) && snapPoint.position.length === 3 ? snapPoint.position : [0, 0, 0]
+        const snapPos: [number, number, number] =
+          Array.isArray(snapPoint.position) && snapPoint.position.length === 3
+            ? [snapPoint.position[0], snapPoint.position[1], snapPoint.position[2]]
+            : [0, 0, 0]
 
         return (
           <group key={snapPoint.id} position={snapPos}>
@@ -271,8 +272,7 @@ function SnapPointEditor3D({
   onSnapPointMove: (snapPointId: string, position: [number, number, number]) => void
 }) {
   // Ensure component has valid position
-  const componentPosition =
-    Array.isArray(component.position) && component.position.length === 3 ? component.position : [0, 0, 0]
+  const componentPosition: [number, number, number] = [0, 0, 0]
 
   // Filter out invalid snap points before rendering
   const validSnapPoints = snapPoints.filter(isValidSnapPoint)
@@ -303,6 +303,7 @@ function ModelWithSnapPoints({ component, snapPoints, isPlacementMode, onCompone
   const [loadedModel, setLoadedModel] = useState<THREE.Group | null>(null)
   const [modelUrl, setModelUrl] = useState<string | null>(null)
   const { raycaster, mouse, camera, gl } = useThree();
+  const [hoverPoint, setHoverPoint] = useState<THREE.Vector3 | null>(null)
 
   // Load model URL (db:// or direct)
   useEffect(() => {
@@ -325,7 +326,7 @@ function ModelWithSnapPoints({ component, snapPoints, isPlacementMode, onCompone
   useEffect(() => {
     if (!modelUrl) return setLoadedModel(null)
     const loader = new OBJLoader()
-    loader.load(modelUrl, (object) => {
+    loader.load(modelUrl, (object: THREE.Group) => {
       // Center and scale model
       const box = new THREE.Box3().setFromObject(object)
       const size = box.getSize(new THREE.Vector3())
@@ -340,6 +341,23 @@ function ModelWithSnapPoints({ component, snapPoints, isPlacementMode, onCompone
     })
   }, [modelUrl])
 
+  // Hover/preview logic for placement mode
+  useFrame(() => {
+    if (isPlacementMode && meshRef.current) {
+      raycaster.setFromCamera(mouse, camera);
+      const intersects = loadedModel
+        ? raycaster.intersectObject(loadedModel, true)
+        : raycaster.intersectObject(meshRef.current, true);
+      if (intersects.length > 0) {
+        setHoverPoint(intersects[0].point.clone());
+      } else {
+        setHoverPoint(null);
+      }
+    } else {
+      setHoverPoint(null);
+    }
+  });
+
   // Placement click handler
   const handlePointerDown = (event: any) => {
     if (!isPlacementMode) return;
@@ -350,7 +368,7 @@ function ModelWithSnapPoints({ component, snapPoints, isPlacementMode, onCompone
     const rect = gl.domElement.getBoundingClientRect();
     const x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
     const y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-    raycaster.setFromCamera({ x, y }, camera);
+    raycaster.setFromCamera(new THREE.Vector2(x, y), camera);
     const intersects = loadedModel
       ? raycaster.intersectObject(loadedModel, true)
       : raycaster.intersectObject(meshRef.current, true);
@@ -386,6 +404,13 @@ function ModelWithSnapPoints({ component, snapPoints, isPlacementMode, onCompone
           isActive={false}
         />
       ))}
+      {/* Show placement preview */}
+      {isPlacementMode && hoverPoint && (
+        <mesh position={[hoverPoint.x, hoverPoint.y, hoverPoint.z]}>
+          <sphereGeometry args={[0.04, 16, 16]} />
+          <meshBasicMaterial color="#00ff00" transparent opacity={0.7} />
+        </mesh>
+      )}
     </group>
   )
 }
@@ -411,7 +436,6 @@ export function VisualSnapPointEditor({ component, onSnapPointsUpdated, onClose 
     debugLog("Creating safeComponent")
     return {
       ...component,
-      position: Array.isArray(component.position) && component.position.length === 3 ? component.position : [0, 0, 0],
       snapPoints: Array.isArray(component.snapPoints) ? component.snapPoints.filter((sp) => isValidSnapPoint(sp)) : [],
     }
   }, [component]) // Only recreate when component changes
@@ -458,51 +482,51 @@ export function VisualSnapPointEditor({ component, onSnapPointsUpdated, onClose 
     const newId = `snap-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
     debugLog("Placing new snap point with ID:", newId)
 
-    // Determine which side/face the snap point was placed on and center it on that face
-    const getPlacementSideAndCenter = (pos: [number, number, number]) => {
-      const [x, y, z] = pos
-
-      // Check which coordinate has the largest absolute value to determine the primary face
-      const absX = Math.abs(x)
-      const absY = Math.abs(y)
-      const absZ = Math.abs(z)
-
-      let centeredPosition: [number, number, number]
-      let placementSide: string
-
-      if (absX > absY && absX > absZ) {
-        // Clicked on left or right side - center on that face
-        placementSide = x > 0 ? "right" : "left"
-        centeredPosition = [x > 0 ? 0.5 : -0.5, 0, 0] // Center Y and Z, keep X at face
-      } else if (absY > absX && absY > absZ) {
-        // Clicked on top or bottom - center on that face
-        placementSide = y > 0 ? "top" : "bottom"
-        centeredPosition = [0, y > 0 ? 0.25 : -0.25, 0] // Center X and Z, keep Y at face
-      } else if (absZ > absX && absZ > absY) {
-        // Clicked on front or back - center on that face
-        placementSide = z > 0 ? "back" : "front"
-        centeredPosition = [0, 0, z > 0 ? 0.15 : -0.15] // Center X and Y, keep Z at face
-      } else {
-        // Fallback to center
-        placementSide = "center"
-        centeredPosition = [0, 0, 0]
+    // Helper to determine if click is close to a face center
+    const isCloseToFaceCenter = (pos: [number, number, number], threshold = 0.1) => {
+      const faceCenters: [string, [number, number, number]][] = [
+        ["right", [0.5, 0, 0]],
+        ["left", [-0.5, 0, 0]],
+        ["top", [0, 0.25, 0]],
+        ["bottom", [0, -0.25, 0]],
+        ["back", [0, 0, 0.15]],
+        ["front", [0, 0, -0.15]],
+        ["center", [0, 0, 0]],
+      ];
+      for (const [side, center] of faceCenters) {
+        const dist = Math.sqrt(
+          Math.pow(pos[0] - center[0], 2) +
+          Math.pow(pos[1] - center[1], 2) +
+          Math.pow(pos[2] - center[2], 2)
+        );
+        if (dist < threshold) return { isClose: true, side, center };
       }
+      return { isClose: false, side: "custom", center: pos };
+    };
 
-      return { centeredPosition, placementSide }
+    const { isClose, side, center } = isCloseToFaceCenter(position);
+    let snapPosition: [number, number, number];
+    let placementSide: string;
+    if (isClose) {
+      snapPosition = center;
+      placementSide = side;
+    } else {
+      snapPosition = position;
+      placementSide = "custom";
     }
-
-    const { centeredPosition, placementSide } = getPlacementSideAndCenter(position)
 
     const newSnapPoint: SnapPoint = {
       ...(getDefaultSnapPoint() as SnapPoint),
       id: newId,
       name: `${placementSide.charAt(0).toUpperCase() + placementSide.slice(1)} Connection`,
-      description: `Connection point on the ${placementSide} side`,
-      position: centeredPosition,
+      description: placementSide === "custom"
+        ? "Connection point at custom position"
+        : `Connection point on the ${placementSide} side`,
+      position: snapPosition,
       type: "mechanical",
       createdAt: new Date(),
       updatedAt: new Date(),
-    }
+    };
 
     debugLog("Creating new snap point:", newSnapPoint)
 
@@ -525,7 +549,11 @@ export function VisualSnapPointEditor({ component, onSnapPointsUpdated, onClose 
       type: newSnapPoint.type,
     })
 
-    setSaveStatus(`Snap point placed on ${placementSide} side and centered! Edit its properties below and click Save.`)
+    setSaveStatus(
+      placementSide === "custom"
+        ? "Snap point placed at clicked position! Edit its properties below and click Save."
+        : `Snap point placed on ${placementSide} side and centered! Edit its properties below and click Save.`
+    )
   }
 
   const handleSnapPointMove = (snapPointId: string, position: [number, number, number]) => {

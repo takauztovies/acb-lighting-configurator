@@ -1,0 +1,54 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  // output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Component {
+  id          String   @id @default(uuid())
+  name        String
+  type        String?
+  description String?
+  model3dUrl  String? // URL or file reference for 3D model
+  imageUrl    String? // URL or file reference for thumbnail
+  metadata    Json?
+  snapPoints  SnapPoint[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model File {
+  id        String   @id @default(uuid())
+  filename  String
+  mimetype  String
+  url       String
+  size      Int
+  uploadedAt DateTime @default(now())
+}
+
+model Preset {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  components  Json     // Array of component placements (componentId, position, rotation, etc.)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model SnapPoint {
+  id          String   @id @default(uuid())
+  component   Component @relation(fields: [componentId], references: [id])
+  componentId String
+  name        String?
+  type        String?
+  position    String   // Store as JSON string: [x, y, z]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}

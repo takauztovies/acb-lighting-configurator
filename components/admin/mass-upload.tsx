@@ -504,6 +504,7 @@ export function MassUpload({ onUploadComplete }: MassUploadProps) {
                     type="file"
                     accept=".xlsx,.xls"
                     className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200"
+                    aria-label="Upload filled Excel file"
                   />
                 </div>
 
@@ -515,6 +516,7 @@ export function MassUpload({ onUploadComplete }: MassUploadProps) {
                     multiple
                     accept=".jpg,.jpeg,.png,.gif,.webp,.obj,.igs,.iges,.step,.stp"
                     className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200"
+                    aria-label="Upload asset files (images and 3D models)"
                   />
                   <p className="text-xs text-gray-500 mt-1">
                     Upload images (.jpg, .png, .gif, .webp) and 3D models (.obj, .igs, .step, .stp) referenced in your

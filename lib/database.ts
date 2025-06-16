@@ -106,11 +106,23 @@ export interface BundleData {
   updatedAt: Date
 }
 
+// Add configuration interface
+export interface ConfigurationData {
+  id: string
+  customerId: string
+  name: string
+  description?: string
+  data: any // JSON or object representing the configuration
+  createdAt: Date
+  updatedAt: Date
+}
+
 // Simple in-memory database implementation
 class Database {
   private components: Map<string, ComponentData> = new Map()
   private presets: Map<string, PresetData> = new Map()
   private bundles: Map<string, BundleData> = new Map()
+  private configurations: Map<string, ConfigurationData> = new Map()
   private initialized = false
 
   // Component methods
@@ -240,6 +252,71 @@ class Database {
     }
   }
 
+  // Configuration methods
+  async saveConfiguration(config: ConfigurationData): Promise<ConfigurationData> {
+    await this.init()
+    try {
+      const updatedConfig = {
+        ...config,
+        updatedAt: new Date(),
+      }
+      this.configurations.set(config.id, updatedConfig)
+      console.log(`Configuration saved: ${config.id}`)
+      return updatedConfig
+    } catch (error) {
+      console.error("Error saving configuration:", error)
+      throw error
+    }
+  }
+
+  async getConfiguration(id: string): Promise<ConfigurationData | null> {
+    await this.init()
+    try {
+      const config = this.configurations.get(id)
+      return config || null
+    } catch (error) {
+      console.error("Error getting configuration:", error)
+      return null
+    }
+  }
+
+  async getAllConfigurations(): Promise<ConfigurationData[]> {
+    await this.init()
+    try {
+      return Array.from(this.configurations.values())
+    } catch (error) {
+      console.error("Error getting all configurations:", error)
+      return []
+    }
+  }
+
+  async updateConfiguration(id: string, updates: Partial<ConfigurationData>): Promise<ConfigurationData | null> {
+    await this.init()
+    try {
+      const config = this.configurations.get(id)
+      if (!config) return null
+      const updatedConfig = { ...config, ...updates, updatedAt: new Date() }
+      this.configurations.set(id, updatedConfig)
+      console.log(`Configuration updated: ${id}`)
+      return updatedConfig
+    } catch (error) {
+      console.error("Error updating configuration:", error)
+      return null
+    }
+  }
+
+  async deleteConfiguration(id: string): Promise<boolean> {
+    await this.init()
+    try {
+      const deleted = this.configurations.delete(id)
+      console.log(`Configuration deleted: ${id}`)
+      return deleted
+    } catch (error) {
+      console.error("Error deleting configuration:", error)
+      return false
+    }
+  }
+
   // Initialization method
   async init(): Promise<void> {
     if (this.initialized) return
@@ -251,6 +328,7 @@ class Database {
       this.components.clear()
       this.presets.clear()
       this.bundles.clear()
+      this.configurations.clear()
 
       // Initialize with mock data
       await this.initializeMockData()
@@ -563,6 +641,7 @@ class Database {
       this.components.clear()
       this.presets.clear()
       this.bundles.clear()
+      this.configurations.clear()
       console.log("Database cleared")
     } catch (error) {
       console.error("Error clearing database:", error)
@@ -746,6 +825,42 @@ class Database {
     await this.init()
     console.log("File saved:", file.id)
   }
+
+  // --- Database tools for DataManager ---
+  async verifyDatabase(): Promise<{ status: string; issues: string[] }> {
+    // Simple mock: always healthy
+    return { status: "healthy", issues: [] }
+  }
+
+  async exportDatabase(): Promise<string> {
+    // Export all data as JSON
+    const data = {
+      components: await this.getAllComponents(),
+      presets: await this.getAllPresets(),
+      bundles: await this.getAllBundles(),
+    }
+    return JSON.stringify(data, null, 2)
+  }
+
+  async importDatabase(jsonData: string): Promise<void> {
+    // Import all data from JSON
+    const data = JSON.parse(jsonData)
+    if (data.components) {
+      for (const comp of data.components) {
+        await this.saveComponent(comp)
+      }
+    }
+    if (data.presets) {
+      for (const preset of data.presets) {
+        await this.savePreset(preset)
+      }
+    }
+    if (data.bundles) {
+      for (const bundle of data.bundles) {
+        await this.saveBundle(bundle)
+      }
+    }
+  }
 }
 
 // Create and export the database instance
@@ -753,7 +868,3 @@ export const db = new Database()
 
 // Export the database instance
 console.log("📦 Database module loaded")
-
-// Export types for convenience
-export type { SnapPoint }
-export type { InspirationData, PresetData, PresetComponent, BundleData }

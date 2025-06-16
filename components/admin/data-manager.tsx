@@ -34,6 +34,7 @@ interface DataManagerProps {
 interface FileWithComponent extends FileData {
   componentName?: string
   componentType?: string
+  createdAt: Date
 }
 
 export function DataManager({ components }: DataManagerProps) {
@@ -69,6 +70,7 @@ export function DataManager({ components }: DataManagerProps) {
           componentId: "comp-1",
           componentName: "Track System",
           componentType: "track",
+          createdAt: new Date(),
         },
         {
           id: "file-2",
@@ -79,6 +81,7 @@ export function DataManager({ components }: DataManagerProps) {
           componentId: "comp-2",
           componentName: "LED Spotlight",
           componentType: "spotlight",
+          createdAt: new Date(),
         },
       ]
 
@@ -420,6 +423,7 @@ export function DataManager({ components }: DataManagerProps) {
                     accept=".json"
                     onChange={importDatabase}
                     style={{ display: "none" }}
+                    aria-label="Import database JSON file"
                   />
                   <Button
                     onClick={() => document.getElementById("import-file")?.click()}
@@ -434,10 +438,10 @@ export function DataManager({ components }: DataManagerProps) {
 
               {status && (
                 <Alert
-                  variant={status.includes("error") ? "destructive" : status === "healthy" ? "default" : "warning"}
+                  variant={status.includes("error") ? "destructive" : "default"}
                 >
                   <div className="flex items-center gap-2">
-                    {status.includes("error") || status === "issues-found" ? (
+                    {status.includes("error") ? (
                       <AlertTriangle className="w-4 h-4" />
                     ) : (
                       <CheckCircle className="w-4 h-4" />

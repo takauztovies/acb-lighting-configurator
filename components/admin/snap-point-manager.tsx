@@ -13,7 +13,7 @@ import { VisualSnapPointEditor } from "./visual-snap-point-editor"
 
 interface SnapPointManagerProps {
   components: ComponentData[]
-  onSnapPointsUpdated: () => void
+  onSnapPointsUpdated: (updatedComponent: ComponentData) => void
 }
 
 export function SnapPointManager({ components, onSnapPointsUpdated }: SnapPointManagerProps) {
@@ -52,7 +52,7 @@ export function SnapPointManager({ components, onSnapPointsUpdated }: SnapPointM
 
   const handleSnapPointsUpdated = (updatedComponent: ComponentData) => {
     setSelectedComponent(updatedComponent)
-    onSnapPointsUpdated()
+    onSnapPointsUpdated(updatedComponent)
     setSaveStatus("Component snap points updated successfully!")
     setTimeout(() => setSaveStatus(""), 3000)
   }

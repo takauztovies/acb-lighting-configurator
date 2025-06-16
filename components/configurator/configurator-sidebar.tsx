@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge"
 import { PresetSelector } from "./preset-selector"
 import { RoomDimensionsControl } from "./room-dimensions-control"
 import { CableCalculator } from "./cable-calculator"
+import { ComponentTileGrid, ComponentTile } from "./ComponentTileGrid"
 
 // Extended LightComponent to include bundle data
 interface ExtendedLightComponent extends LightComponent {
@@ -164,25 +165,6 @@ export function ConfiguratorSidebar() {
   // Combine available components with bundles
   const allComponents = [...(state.availableComponents || []), ...bundleComponents]
 
-  // Safely group components
-  const groupedComponents: Record<string, ExtendedLightComponent[]> = {}
-
-  // Only process if allComponents is an array
-  if (Array.isArray(allComponents)) {
-    allComponents.forEach((component) => {
-      if (component && component.type) {
-        if (!groupedComponents[component.type]) {
-          groupedComponents[component.type] = []
-        }
-        groupedComponents[component.type].push(component)
-      }
-    })
-  }
-
-  console.log("ConfiguratorSidebar: Rendering with availableComponents:", state.availableComponents?.length || 0)
-  console.log("ConfiguratorSidebar: Available component names:", state.availableComponents?.map((c) => c.name) || [])
-  console.log("ConfiguratorSidebar: groupedComponents:", Object.keys(groupedComponents))
-
   // Show loading state with black and white colors
   if (state.isLoadingComponents) {
     return (
@@ -259,7 +241,7 @@ export function ConfiguratorSidebar() {
             </CardHeader>
           </Card>
 
-          {Object.keys(groupedComponents).length === 0 ? (
+          {allComponents.length === 0 ? (
             <div className="text-center py-8">
               <p className="text-sm text-gray-500 mb-2">{t("noComponentsAvailable")}</p>
               <p className="text-xs text-gray-400 mb-4">{t("addComponentsInAdmin")}</p>
@@ -274,56 +256,34 @@ export function ConfiguratorSidebar() {
               </Button>
             </div>
           ) : (
-            Object.entries(groupedComponents).map(([type, components]) => {
-              const Icon = componentIcons[type as keyof typeof componentIcons] || componentIcons.default
-              return (
-                <Card key={type}>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="flex items-center text-sm">
-                      <Icon className="w-4 h-4 mr-2" />
-                      {t(type)}
-                      <Badge variant="outline" className="ml-2 text-xs">
-                        {components.length}
-                      </Badge>
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-2">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {components.map((component) => (
-                        <div key={component.id} className="flex flex-col justify-between p-3 border rounded-lg min-w-[170px] max-w-full">
-                          <div className="flex items-center space-x-2 mb-2">
-                            <img
-                              src={component.image || "/placeholder.svg"}
-                              alt={component.name}
-                              className="w-10 h-10 rounded"
-                            />
-                            <div>
-                              <p className="text-sm font-medium break-words whitespace-normal">{component.name}</p>
-                              <div className="flex items-center space-x-2">
-                                <p className="text-xs text-gray-500">{formatCurrency(component.price)}</p>
-                                {component.type === "bundle" && (
-                                  <Badge variant="secondary" className="text-xs">
-                                    {t("bundle")}
-                                  </Badge>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => addComponent(component)}
-                            className="border-gray-300 text-gray-700 hover:bg-gray-50 w-full"
-                          >
-                            <Plus className="w-3 h-3" />
-                          </Button>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              )
-            })
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center text-sm">
+                  {t("Available Components")}
+                  <Badge variant="outline" className="ml-2 text-xs">
+                    {allComponents.length}
+                  </Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <ComponentTileGrid
+                  components={allComponents.map((component) => ({
+                    id: component.id,
+                    name: component.name,
+                    image: component.image,
+                    price: component.price,
+                    type: component.type,
+                    extra: component.type === "bundle" ? (
+                      <Badge variant="secondary" className="text-xs">{t("bundle")}</Badge>
+                    ) : null,
+                  }))}
+                  onSelect={(component) => {
+                    const found = allComponents.find((c) => c.id === component.id)
+                    if (found) addComponent(found)
+                  }}
+                />
+              </CardContent>
+            </Card>
           )}
         </TabsContent>
 

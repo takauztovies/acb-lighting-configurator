@@ -13,6 +13,8 @@ import { Trash2, Save, X, Target, Move3D } from "lucide-react"
 import { db, type ComponentData } from "@/lib/database"
 import { getDefaultSnapPoint, type SnapPoint } from "@/lib/snap-system"
 import * as THREE from "three"
+import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js"
+import { ComponentSnapPoint } from "@/components/configurator/component-snap-point"
 
 // Debug utility function
 function debugLog(message: string, data?: any) {
@@ -277,51 +279,114 @@ function SnapPointEditor3D({
 
   return (
     <>
-      {/* Clickable Component */}
-      <ClickableComponent3D
+      <ModelWithSnapPoints
         component={component}
         snapPoints={validSnapPoints}
         isPlacementMode={isPlacementMode}
         onComponentClick={onSnapPointPlace}
       />
-
-      {/* Existing snap points */}
-      {validSnapPoints.map((snapPoint) => {
-        // Ensure snap point has valid position
-        const snapPos =
-          Array.isArray(snapPoint.position) && snapPoint.position.length === 3 ? snapPoint.position : [0, 0, 0]
-
-        const worldPosition: [number, number, number] = [
-          componentPosition[0] + snapPos[0],
-          componentPosition[1] + snapPos[1],
-          componentPosition[2] + snapPos[2],
-        ]
-
-        return (
-          <VisualSnapPoint
-            key={snapPoint.id}
-            snapPoint={snapPoint}
-            position={worldPosition}
-            isSelected={selectedSnapPointId === snapPoint.id}
-            isEditing={isEditMode}
-            onClick={() => onSnapPointClick(snapPoint.id)}
-            onPositionChange={(newWorldPos) => {
-              const localPos: [number, number, number] = [
-                newWorldPos[0] - componentPosition[0],
-                newWorldPos[1] - componentPosition[1],
-                newWorldPos[2] - componentPosition[2],
-              ]
-              onSnapPointMove(snapPoint.id, localPos)
-            }}
-          />
-        )
-      })}
-
       {/* Lighting */}
       <ambientLight intensity={0.6} />
       <directionalLight position={[5, 5, 5]} intensity={0.8} />
       <directionalLight position={[-5, 5, -5]} intensity={0.4} />
     </>
+  )
+}
+
+function ModelWithSnapPoints({ component, snapPoints, isPlacementMode, onComponentClick }: {
+  component: ComponentData
+  snapPoints: SnapPoint[]
+  isPlacementMode: boolean
+  onComponentClick: (position: [number, number, number]) => void
+}) {
+  const meshRef = useRef<THREE.Group>(null)
+  const [loadedModel, setLoadedModel] = useState<THREE.Group | null>(null)
+  const [modelUrl, setModelUrl] = useState<string | null>(null)
+  const { raycaster, mouse, camera, gl } = useThree();
+
+  // Load model URL (db:// or direct)
+  useEffect(() => {
+    if (!component.model3d) return setModelUrl(null)
+    if (component.model3d.startsWith("db://")) {
+      const fileId = component.model3d.replace("db://", "")
+      db.getFile(fileId).then(file => {
+        if (file && file.data && file.data.startsWith("data:")) {
+          fetch(file.data).then(res => res.blob()).then(blob => {
+            setModelUrl(URL.createObjectURL(blob))
+          })
+        }
+      })
+    } else {
+      setModelUrl(component.model3d)
+    }
+  }, [component.model3d])
+
+  // Load OBJ model
+  useEffect(() => {
+    if (!modelUrl) return setLoadedModel(null)
+    const loader = new OBJLoader()
+    loader.load(modelUrl, (object) => {
+      // Center and scale model
+      const box = new THREE.Box3().setFromObject(object)
+      const size = box.getSize(new THREE.Vector3())
+      const maxDim = Math.max(size.x, size.y, size.z)
+      if (maxDim > 0) {
+        const scale = 1 / maxDim
+        object.scale.setScalar(scale)
+        const center = box.getCenter(new THREE.Vector3())
+        object.position.sub(center.multiplyScalar(scale))
+      }
+      setLoadedModel(object)
+    })
+  }, [modelUrl])
+
+  // Placement click handler
+  const handlePointerDown = (event: any) => {
+    if (!isPlacementMode) return;
+    event.stopPropagation();
+    if (!meshRef.current) return;
+
+    // Get mouse position in normalized device coordinates (-1 to +1)
+    const rect = gl.domElement.getBoundingClientRect();
+    const x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    const y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    raycaster.setFromCamera({ x, y }, camera);
+    const intersects = loadedModel
+      ? raycaster.intersectObject(loadedModel, true)
+      : raycaster.intersectObject(meshRef.current, true);
+    if (intersects.length > 0) {
+      // Convert world position to local position
+      const intersect = intersects[0];
+      const localPos = meshRef.current.worldToLocal(intersect.point.clone());
+      onComponentClick([localPos.x, localPos.y, localPos.z]);
+    }
+  };
+
+  return (
+    <group ref={meshRef} onPointerDown={handlePointerDown}>
+      {loadedModel ? (
+        <primitive object={loadedModel.clone()} />
+      ) : (
+        <mesh>
+          <boxGeometry args={[1, 0.5, 0.3]} />
+          <meshStandardMaterial color="#666" opacity={0.7} transparent />
+        </mesh>
+      )}
+      {/* Render snap points using ComponentSnapPoint */}
+      {snapPoints.map((sp) => (
+        <ComponentSnapPoint
+          key={sp.id}
+          position={sp.position}
+          snapPoint={{
+            id: sp.id,
+            type: sp.type,
+            name: sp.name,
+            position: sp.position,
+          }}
+          isActive={false}
+        />
+      ))}
+    </group>
   )
 }
 
@@ -862,6 +927,7 @@ export function VisualSnapPointEditor({ component, onSnapPointsUpdated, onClose 
                       value={formData.type || "mechanical"}
                       onChange={(e) => setFormData({ ...formData, type: e.target.value as SnapPoint["type"] })}
                       className="w-full p-2 border border-gray-300 rounded-md"
+                      title="Component Type"
                     >
                       <option value="power">Power</option>
                       <option value="mechanical">Mechanical</option>

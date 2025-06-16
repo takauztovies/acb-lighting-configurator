@@ -16,9 +16,39 @@ interface SimpleGuidedSetupProps {
   onComplete: (setupData: any) => void
 }
 
+interface HangingOption {
+  id: string
+  name: string
+  desc: string
+  recommended?: boolean
+  heightRange: string
+  defaultHeight: number
+  power: string
+}
+
+interface SetupData {
+  roomDimensions: {
+    width: number
+    length: number
+    height: number
+  }
+  powerSource: string | null
+  socketPosition: {
+    wall: string
+    distanceFromLeft: number
+    distanceFromBottom: number
+  } | null
+  hangingType: string | null
+  hangingHeight: number
+  trackLayout: {
+    type: string
+    orientation: string
+  } | null
+}
+
 export function SimpleGuidedSetup({ isOpen, onClose, onComplete }: SimpleGuidedSetupProps) {
   const [currentStep, setCurrentStep] = useState(0)
-  const [setupData, setSetupData] = useState({
+  const [setupData, setSetupData] = useState<SetupData>({
     roomDimensions: { width: 8, length: 6, height: 3 },
     powerSource: null,
     socketPosition: null,

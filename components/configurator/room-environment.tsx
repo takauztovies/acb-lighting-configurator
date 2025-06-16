@@ -3,7 +3,7 @@
 import { useRef, useEffect, useState } from "react"
 import { useConfigurator } from "./configurator-context"
 import * as THREE from "three"
-import { TextureLoader } from "three"
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js"
 
 export function RoomEnvironment() {
   const { state } = useConfigurator()
@@ -29,7 +29,7 @@ export function RoomEnvironment() {
 
   useEffect(() => {
     if (floorTexturePath) {
-      new TextureLoader().load(floorTexturePath, setFloorTexture)
+      new THREE.TextureLoader().load(floorTexturePath, setFloorTexture)
     } else {
       setFloorTexture(null)
     }
@@ -37,7 +37,7 @@ export function RoomEnvironment() {
 
   useEffect(() => {
     if (ceilingTexturePath) {
-      new TextureLoader().load(ceilingTexturePath, setCeilingTexture)
+      new THREE.TextureLoader().load(ceilingTexturePath, setCeilingTexture)
     } else {
       setCeilingTexture(null)
     }
@@ -45,7 +45,7 @@ export function RoomEnvironment() {
 
   useEffect(() => {
     if (backWallTexturePath) {
-      new TextureLoader().load(backWallTexturePath, setBackWallTexture)
+      new THREE.TextureLoader().load(backWallTexturePath, setBackWallTexture)
     } else {
       setBackWallTexture(null)
     }
@@ -53,7 +53,7 @@ export function RoomEnvironment() {
 
   useEffect(() => {
     if (leftWallTexturePath) {
-      new TextureLoader().load(leftWallTexturePath, setLeftWallTexture)
+      new THREE.TextureLoader().load(leftWallTexturePath, setLeftWallTexture)
     } else {
       setLeftWallTexture(null)
     }
@@ -61,7 +61,7 @@ export function RoomEnvironment() {
 
   useEffect(() => {
     if (rightWallTexturePath) {
-      new TextureLoader().load(rightWallTexturePath, setRightWallTexture)
+      new THREE.TextureLoader().load(rightWallTexturePath, setRightWallTexture)
     } else {
       setRightWallTexture(null)
     }
@@ -76,10 +76,10 @@ export function RoomEnvironment() {
 
     // Create materials with error handling
     const wallMaterial = new THREE.MeshStandardMaterial({
-      color: "#fafafa", // Changed from "#f5f5f5" to much lighter
+      color: "#fafafa",
       side: THREE.DoubleSide,
       transparent: true,
-      opacity: 0.9, // Increased opacity slightly for better visibility
+      opacity: 0.6,
     })
 
     const floorMaterial = floorTexture
@@ -106,118 +106,50 @@ export function RoomEnvironment() {
           metalness: 0.0,
         })
 
-    // Floor
-    const floorGeometry = new THREE.PlaneGeometry(width, length)
-    const floor = new THREE.Mesh(floorGeometry, floorMaterial)
-    floor.rotation.x = -Math.PI / 2
-    floor.position.y = 0
-    floor.receiveShadow = true
-    groupRef.current.add(floor)
-
-    // Ceiling
-    const ceilingGeometry = new THREE.PlaneGeometry(width, length)
-    const ceiling = new THREE.Mesh(ceilingGeometry, ceilingMaterial)
-    ceiling.rotation.x = Math.PI / 2
-    ceiling.position.y = height
-    ceiling.receiveShadow = true
-    groupRef.current.add(ceiling)
-
-    // Walls
+    // Create walls group without any wireframe/edges
     const wallsGroup = new THREE.Group()
 
     // Back wall
     const backWallGeometry = new THREE.PlaneGeometry(width, height)
-    const backWallMaterial = backWallTexture
-      ? new THREE.MeshStandardMaterial({
-          map: backWallTexture,
-          side: THREE.DoubleSide,
-          transparent: true,
-          opacity: 0.8,
-        })
-      : new THREE.MeshStandardMaterial({
-          color: "#fafafa", // Much lighter wall color
-          side: THREE.DoubleSide,
-          transparent: true,
-          opacity: 0.9,
-        })
-
-    const backWall = new THREE.Mesh(backWallGeometry, backWallMaterial)
+    const backWall = new THREE.Mesh(backWallGeometry, wallMaterial.clone())
     backWall.position.set(0, height / 2, -length / 2)
-    backWall.receiveShadow = true
     wallsGroup.add(backWall)
-
-    // Front wall (optional, usually omitted for better view)
-    if (state.showFrontWall) {
-      const frontWallGeometry = new THREE.PlaneGeometry(width, height)
-      const frontWall = new THREE.Mesh(frontWallGeometry, wallMaterial)
-      frontWall.position.set(0, height / 2, length / 2)
-      frontWall.rotation.y = Math.PI
-      frontWall.receiveShadow = true
-      wallsGroup.add(frontWall)
-    }
 
     // Left wall
     const leftWallGeometry = new THREE.PlaneGeometry(length, height)
-    const leftWallMaterial = leftWallTexture
-      ? new THREE.MeshStandardMaterial({
-          map: leftWallTexture,
-          side: THREE.DoubleSide,
-          transparent: true,
-          opacity: 0.8,
-        })
-      : new THREE.MeshStandardMaterial({
-          color: "#fafafa", // Much lighter wall color
-          side: THREE.DoubleSide,
-          transparent: true,
-          opacity: 0.9,
-        })
-
-    const leftWall = new THREE.Mesh(leftWallGeometry, leftWallMaterial)
+    const leftWall = new THREE.Mesh(leftWallGeometry, wallMaterial.clone())
     leftWall.position.set(-width / 2, height / 2, 0)
     leftWall.rotation.y = Math.PI / 2
-    leftWall.receiveShadow = true
     wallsGroup.add(leftWall)
 
     // Right wall
     const rightWallGeometry = new THREE.PlaneGeometry(length, height)
-    const rightWallMaterial = rightWallTexture
-      ? new THREE.MeshStandardMaterial({
-          map: rightWallTexture,
-          side: THREE.DoubleSide,
-          transparent: true,
-          opacity: 0.8,
-        })
-      : new THREE.MeshStandardMaterial({
-          color: "#fafafa", // Much lighter wall color
-          side: THREE.DoubleSide,
-          transparent: true,
-          opacity: 0.9,
-        })
-
-    const rightWall = new THREE.Mesh(rightWallGeometry, rightWallMaterial)
+    const rightWall = new THREE.Mesh(rightWallGeometry, wallMaterial.clone())
     rightWall.position.set(width / 2, height / 2, 0)
     rightWall.rotation.y = -Math.PI / 2
-    rightWall.receiveShadow = true
     wallsGroup.add(rightWall)
 
+    // Floor
+    const floorGeometry = new THREE.PlaneGeometry(width, length)
+    const floor = new THREE.Mesh(floorGeometry, floorMaterial)
+    floor.rotation.x = -Math.PI / 2
+    wallsGroup.add(floor)
+
+    // Ceiling
+    const ceilingGeometry = new THREE.PlaneGeometry(width, length)
+    const ceiling = new THREE.Mesh(ceilingGeometry, ceilingMaterial)
+    ceiling.position.y = height
+    ceiling.rotation.x = Math.PI / 2
+    wallsGroup.add(ceiling)
+
+    // Add walls group to scene
     groupRef.current.add(wallsGroup)
     wallsRef.current = wallsGroup
 
-    // Add room outline (wireframe)
-    const outlineGeometry = new THREE.EdgesGeometry(new THREE.BoxGeometry(width, height, length))
-    const outlineMaterial = new THREE.LineBasicMaterial({
-      color: "#666666",
-      transparent: true,
-      opacity: 0.3,
-    })
-    const outline = new THREE.LineSegments(outlineGeometry, outlineMaterial)
-    outline.position.y = height / 2
-    groupRef.current.add(outline)
   }, [
     width,
     length,
     height,
-    state.showFrontWall,
     state.sceneImageSettings,
     floorTexture,
     ceilingTexture,

@@ -156,7 +156,9 @@ function DraggableWindow({ title, children, initialPosition, onClose, className 
           <button
             onClick={onClose}
             className="text-gray-500 hover:text-gray-700 p-1 rounded hover:bg-gray-200 transition-colors"
-            onMouseDown={(e) => e.stopPropagation()} // Prevent dragging when clicking close
+            onMouseDown={(e) => e.stopPropagation()}
+            aria-label="Close window"
+            title="Close window"
           >
             <X className="h-4 w-4" />
           </button>
@@ -165,6 +167,21 @@ function DraggableWindow({ title, children, initialPosition, onClose, className 
       <div className="p-3">{children}</div>
     </div>
   )
+}
+
+// Type guard for LightComponent
+function isLightComponent(component: any): component is LightComponent {
+  return (
+    component &&
+    typeof component.id === 'string' &&
+    typeof component.name === 'string' &&
+    typeof component.type === 'string' &&
+    Array.isArray(component.position) &&
+    Array.isArray(component.rotation) &&
+    typeof component.price === 'number' &&
+    typeof component.specifications === 'object' &&
+    Array.isArray(component.connectionPoints)
+  );
 }
 
 export function View2D({ snapToGrid = false, gridSize = 0.5, mode = "select" }: View2DProps) {
@@ -315,6 +332,7 @@ export function View2D({ snapToGrid = false, gridSize = 0.5, mode = "select" }: 
       // Check in reverse order to select the top-most component
       for (let i = state.currentConfig.components.length - 1; i >= 0; i--) {
         const component = state.currentConfig.components[i]
+        if (!isLightComponent(component)) continue
         const [cx, cy] = worldToCanvas(component.position[0], component.position[2])
         const { width, height } = getComponentBounds(component)
 
@@ -350,6 +368,7 @@ export function View2D({ snapToGrid = false, gridSize = 0.5, mode = "select" }: 
   const findConnectionPointAtPosition = useCallback(
     (canvasX: number, canvasY: number): { componentId: string; pointId: string } | null => {
       for (const component of state.currentConfig.components) {
+        if (!isLightComponent(component)) continue
         const [cx, cy] = worldToCanvas(component.position[0], component.position[2])
         const connectionPoints = getConnectionPoints(component)
 
@@ -472,8 +491,9 @@ export function View2D({ snapToGrid = false, gridSize = 0.5, mode = "select" }: 
           if (connectingFrom.componentId !== connectionPoint.componentId) {
             const newConnection = {
               id: `conn-${Date.now()}`,
-              from: connectingFrom,
-              to: connectionPoint,
+              sourceId: connectingFrom.componentId,
+              targetId: connectionPoint.componentId,
+              type: "default",
             }
             dispatch({ type: "ADD_CONNECTION", connection: newConnection })
           }
@@ -703,6 +723,7 @@ export function View2D({ snapToGrid = false, gridSize = 0.5, mode = "select" }: 
 
         // Check each component if it's within the selection box
         state.currentConfig.components.forEach((component) => {
+          if (!isLightComponent(component)) return
           const [cx, cy] = worldToCanvas(component.position[0], component.position[2])
           if (cx >= minX && cx <= maxX && cy >= minY && cy <= maxY) {
             selectedIds.push(component.id)
@@ -921,10 +942,11 @@ export function View2D({ snapToGrid = false, gridSize = 0.5, mode = "select" }: 
 
     // Draw components
     for (const component of state.currentConfig.components) {
-      const [x, y] = worldToCanvas(component.position[0], component.position[2])
+      if (!isLightComponent(component)) continue
+      const [cx, cy] = worldToCanvas(component.position[0], component.position[2])
 
       ctx.save()
-      ctx.translate(x, y)
+      ctx.translate(cx, cy)
       ctx.rotate(component.rotation[1])
 
       const isSelected = state.selectedComponentIds.includes(component.id)
@@ -1064,6 +1086,8 @@ export function View2D({ snapToGrid = false, gridSize = 0.5, mode = "select" }: 
       <canvas
         ref={canvasRef}
         className="w-full h-full"
+        aria-label="2D Room Layout Canvas"
+        title="2D Room Layout Canvas"
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
@@ -1076,6 +1100,8 @@ export function View2D({ snapToGrid = false, gridSize = 0.5, mode = "select" }: 
         <button
           className="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100"
           onClick={() => setScale(scale * 1.2)}
+          aria-label="Zoom in"
+          title="Zoom in"
         >
           +
         </button>
@@ -1083,6 +1109,8 @@ export function View2D({ snapToGrid = false, gridSize = 0.5, mode = "select" }: 
         <button
           className="w-8 h-8 flex items-center justify-center rounded hover:bg-gray-100"
           onClick={() => setScale(scale / 1.2)}
+          aria-label="Zoom out"
+          title="Zoom out"
         >
           -
         </button>
@@ -1143,6 +1171,8 @@ export function View2D({ snapToGrid = false, gridSize = 0.5, mode = "select" }: 
               <button
                 onClick={clearAllMeasurements}
                 className="text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded"
+                aria-label="Clear all measurements"
+                title="Clear all measurements"
               >
                 Clear All
               </button>
@@ -1156,7 +1186,8 @@ export function View2D({ snapToGrid = false, gridSize = 0.5, mode = "select" }: 
                   <button
                     onClick={() => removeMeasurement(measurement.id)}
                     className="text-gray-500 hover:text-red-500 p-1"
-                    title="Remove measurement"
+                    aria-label={`Remove measurement ${index + 1}`}
+                    title={`Remove measurement ${index + 1}`}
                   >
                     <X className="h-3 w-3" />
                   </button>

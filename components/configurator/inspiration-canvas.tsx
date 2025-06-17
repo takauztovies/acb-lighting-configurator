@@ -92,8 +92,12 @@ export function InspirationCanvas({ inspirationId, onClose, onApplyToConfigurati
     const resolveImage = async () => {
       if (inspiration?.image) {
         try {
-          const url = await db.resolveFileUrl(inspiration.image)
-          setResolvedImageUrl(url)
+          if (inspiration.image.startsWith("db://")) {
+            const fileId = inspiration.image.replace("db://", "")
+            const file = await db.getFile(fileId)
+            const url = file.url || file.data
+            setResolvedImageUrl(url)
+          }
         } catch (error) {
           console.error("Error resolving inspiration image:", error)
           setResolvedImageUrl("/placeholder.svg?height=600&width=800&text=Error+Loading+Image")

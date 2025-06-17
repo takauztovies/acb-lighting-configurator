@@ -40,6 +40,7 @@ const HANGING_TYPES = {
     description: "Individual hanging lights",
     height: 1.0, // 1m from ceiling
     heightRange: [0.8, 1.2], // 80cm to 120cm from ceiling
+    recommended: false,
     components: ["pendant-light", "power-supply", "connector"],
   },
   linear: {
@@ -47,6 +48,7 @@ const HANGING_TYPES = {
     description: "Continuous linear LED lighting",
     height: 0.3, // 30cm from ceiling
     heightRange: [0.0, 0.5], // 0cm to 50cm from ceiling
+    recommended: false,
     components: ["linear-light", "power-supply", "driver"],
   },
 }
@@ -57,18 +59,38 @@ interface EnhancedGuidedSetupProps {
   onComplete: (setupData: any) => void
 }
 
+interface SocketPosition {
+  wall: string;
+  description: string;
+  x: number;
+  y: number;
+  z: number;
+}
+
+interface SetupData {
+  roomDimensions: { width: number; length: number; height: number };
+  socketPosition: SocketPosition | null;
+  hangingType: string | null;
+  hangingHeight: number;
+  trackLayout: {
+    type: string;
+    preset: string | null;
+    customComponents: any[];
+  };
+}
+
 export function EnhancedGuidedSetup({ isOpen, onClose, onComplete }: EnhancedGuidedSetupProps) {
   const [currentStep, setCurrentStep] = useState(0)
   const [trackPresets, setTrackPresets] = useState<PresetData[]>([])
   const [loadingPresets, setLoadingPresets] = useState(false)
   const { dispatch } = useConfigurator()
-  const [setupData, setSetupData] = useState({
+  const [setupData, setSetupData] = useState<SetupData>({
     roomDimensions: { width: 8, length: 6, height: 3 },
-    socketPosition: null,
+    socketPosition: { wall: '', description: '', x: 0, y: 0, z: 0 },
     hangingType: null,
     hangingHeight: 2.6,
     trackLayout: {
-      type: "preset", // "preset" or "custom"
+      type: "preset",
       preset: null,
       customComponents: [],
     },
@@ -89,7 +111,11 @@ export function EnhancedGuidedSetup({ isOpen, onClose, onComplete }: EnhancedGui
         setLoadingPresets(true)
         try {
           await db.init()
-          const presets = await db.getPresetsByCategory("track-layout")
+          let presets: PresetData[] = [];
+          if (typeof db.getPresets === 'function') {
+            // TODO: Filter by category if needed
+            presets = await db.getPresets();
+          }
           setTrackPresets(presets)
           console.log("Loaded track presets:", presets.length)
         } catch (error) {
@@ -193,7 +219,7 @@ export function EnhancedGuidedSetup({ isOpen, onClose, onComplete }: EnhancedGui
           <SocketPositionSelector
             roomDimensions={setupData.roomDimensions}
             onPositionSelect={handlePositionSelect}
-            selectedPosition={setupData.socketPosition}
+            selectedPosition={setupData.socketPosition as SocketPosition | null}
           />
         )
 
@@ -217,7 +243,9 @@ export function EnhancedGuidedSetup({ isOpen, onClose, onComplete }: EnhancedGui
                   onClick={() => handleHangingTypeSelect(typeId)}
                 >
                   <CardContent className="p-4 text-center">
-                    {type.recommended && <Badge className="mb-2 bg-green-100 text-green-800">Recommended</Badge>}
+                    {"recommended" in type && type.recommended && (
+                      <Badge className="mb-2 bg-green-100 text-green-800">Recommended</Badge>
+                    )}
                     <h4 className="font-medium mb-2">{type.name}</h4>
                     <p className="text-sm text-gray-600 mb-3">{type.description}</p>
                     <div className="text-xs text-gray-500 space-y-1">
@@ -250,6 +278,8 @@ export function EnhancedGuidedSetup({ isOpen, onClose, onComplete }: EnhancedGui
                       setSetupData((prev) => ({ ...prev, hangingHeight: Number.parseFloat(e.target.value) }))
                     }
                     className="w-full"
+                    title="Adjust drop distance from ceiling"
+                    placeholder="Adjust drop distance from ceiling"
                   />
                   <div className="flex justify-between text-xs text-gray-500">
                     <span>{HANGING_TYPES[setupData.hangingType as keyof typeof HANGING_TYPES].heightRange[0]}m</span>
@@ -265,7 +295,7 @@ export function EnhancedGuidedSetup({ isOpen, onClose, onComplete }: EnhancedGui
                 <h4 className="font-medium text-blue-900 mb-2">Configuration Preview:</h4>
                 <div className="text-sm text-blue-800 space-y-1">
                   <div>
-                    Socket: {setupData.socketPosition.wall} wall, {setupData.socketPosition.description.toLowerCase()}
+                    Socket: {setupData.socketPosition.wall} wall, {setupData.socketPosition.description?.toLowerCase()}
                   </div>
                   <div>
                     System: {HANGING_TYPES[setupData.hangingType as keyof typeof HANGING_TYPES].name} at{" "}
@@ -278,7 +308,7 @@ export function EnhancedGuidedSetup({ isOpen, onClose, onComplete }: EnhancedGui
                     Cable run: ~
                     {setupData.socketPosition.wall === "ceiling"
                       ? `${setupData.hangingHeight.toFixed(1)}m`
-                      : `${(setupData.roomDimensions.height - setupData.socketPosition.y + setupData.hangingHeight).toFixed(1)}m`}{" "}
+                      : `${(setupData.roomDimensions.height - (setupData.socketPosition?.y || 0) + setupData.hangingHeight).toFixed(1)}m`}{" "}
                     from socket
                   </div>
                 </div>
@@ -415,7 +445,7 @@ export function EnhancedGuidedSetup({ isOpen, onClose, onComplete }: EnhancedGui
                   {setupData.roomDimensions.height}m
                 </div>
                 <div>
-                  Socket: {setupData.socketPosition?.wall} wall, {setupData.socketPosition?.description.toLowerCase()}
+                  Socket: {setupData.socketPosition?.wall} wall, {setupData.socketPosition?.description?.toLowerCase()}
                 </div>
                 <div>
                   System:{" "}

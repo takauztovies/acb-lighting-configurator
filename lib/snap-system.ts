@@ -21,6 +21,11 @@ export interface SnapPoint {
   priority?: number
   createdAt?: Date
   updatedAt?: Date
+  faceData?: {
+    faceIndex: number;
+    vertexIndices: [number, number, number];
+    geometry?: any;
+  }
 }
 
 export interface AssemblyStep {
@@ -70,35 +75,12 @@ export function validateSnapConnection(
   targetType: string,
 ): { isValid: boolean; reason?: string } {
   // Basic validation - check if types are compatible
-  if (source.compatibleTypes && !source.compatibleTypes.includes(targetType)) {
+  if (source.compatibleSnapTypes && !source.compatibleSnapTypes.includes(targetType)) {
     return { isValid: false, reason: `${sourceType} is not compatible with ${targetType}` }
   }
 
-  if (target.compatibleTypes && !target.compatibleTypes.includes(sourceType)) {
-    return { isValid: false, reason: `${targetType} is not compatible with ${sourceType}` }
+  if (target.compatibleSnapTypes && !target.compatibleSnapTypes.includes(sourceType)) {
+    return { isValid: false, reason: `${targetType} is not compatible with ${sourceType}` };
   }
-
-  return { isValid: true }
-}
-
-export function findNearestSnapPoint(
-  position: [number, number, number],
-  snapPoints: Array<{ snapPoint: SnapPoint; worldPosition: [number, number, number] }>,
-  threshold: number,
-): { snapPoint: SnapPoint; worldPosition: [number, number, number]; distance: number } | null {
-  if (snapPoints.length === 0) return null
-
-  // Find the nearest snap point
-  let nearest = null
-  let minDistance = Number.POSITIVE_INFINITY
-
-  for (const point of snapPoints) {
-    const distance = new THREE.Vector3(...position).distanceTo(new THREE.Vector3(...point.worldPosition))
-    if (distance < minDistance && distance < threshold) {
-      minDistance = distance
-      nearest = { ...point, distance }
-    }
-  }
-
-  return nearest
+  return { isValid: true };
 }

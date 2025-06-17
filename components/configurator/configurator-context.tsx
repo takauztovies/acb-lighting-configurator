@@ -189,6 +189,7 @@ type Action =
   | { type: "SET_SOCKET_POSITION"; position: { x: number; y: number; z: number } }
   | { type: "CALCULATE_CABLES" }
   | { type: "UPDATE_CABLE_PRICING"; pricing: { power: number; data: number } }
+  | { type: "ADD_CONNECTION"; connection: Connection }
 
 // Create context
 interface ConfiguratorContextType {
@@ -707,6 +708,15 @@ function configuratorReducer(state: ConfiguratorState, action: Action): Configur
           totalPrice:
             state.currentConfig.components.reduce((sum, c) => sum + c.price, 0) +
             updatedCables.reduce((sum, cable) => sum + cable.totalPrice, 0),
+        },
+      }
+
+    case "ADD_CONNECTION":
+      return {
+        ...state,
+        currentConfig: {
+          ...state.currentConfig,
+          connections: [...state.currentConfig.connections, action.connection],
         },
       }
 

@@ -12,43 +12,78 @@ datasource db {
 }
 
 model Component {
-  id          String   @id @default(uuid())
+  id          String      @id @default(cuid())
   name        String
-  type        String?
+  type        String
   description String?
+  price       Float       @default(0)
   model3dUrl  String? // URL or file reference for 3D model
   imageUrl    String? // URL or file reference for thumbnail
+  cardImageUrl String? // URL or file reference for detailed view
   metadata    Json?
   snapPoints  SnapPoint[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
+model File {
+  id          String   @id @default(cuid())
+  filename    String
+  url         String
+  mimetype    String
+  size        Int
+  filepath    String?  // Make filepath optional since it's internal
+  uploadedAt  DateTime @default(now())
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
 
-model File {
-  id        String   @id @default(uuid())
-  filename  String
-  mimetype  String
-  url       String
-  size      Int
-  uploadedAt DateTime @default(now())
-}
-
 model Preset {
-  id          String   @id @default(uuid())
+  id          String   @id @default(cuid())
   name        String
-  description String?
-  components  Json     // Array of component placements (componentId, position, rotation, etc.)
+  description String
+  components  Json     // Array of component data
+  preview     String?
+  category    String?
+  tags        Json?    // Array of strings
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
 
 model SnapPoint {
-  id          String   @id @default(uuid())
-  component   Component @relation(fields: [componentId], references: [id])
+  id          String    @id @default(cuid())
+  name        String
+  type        String
+  position    String    // JSON string: [x, y, z]
+  rotation    String?   // JSON string: [x, y, z]
+  component   Component @relation(fields: [componentId], references: [id], onDelete: Cascade)
   componentId String
-  name        String?
-  type        String?
-  position    String   // Store as JSON string: [x, y, z]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}
+
+model Bundle {
+  id          String   @id @default(cuid())
+  name        String
+  description String
+  components  Json     // Array of component IDs
+  price       Float
+  image       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Inspiration {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  image       String
+  category    String?
+  tags        Json?    // Array of strings
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  displaySize String?  @default("medium")
+  components  Json?    // Array of component data
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }

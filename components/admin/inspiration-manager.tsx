@@ -28,6 +28,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Slider } from "@/components/ui/slider"
 import { db, type InspirationData } from "@/lib/database"
+import styles from './inspiration-manager.module.css'
 
 interface InspirationManagerProps {
   onInspirationSaved?: () => void
@@ -91,7 +92,9 @@ export function InspirationManager({ onInspirationSaved }: InspirationManagerPro
       for (const inspiration of inspirations) {
         if (inspiration.image.startsWith("db://")) {
           try {
-            const resolvedUrl = await db.resolveFileUrl(inspiration.image)
+            const fileId = inspiration.image.replace("db://", "")
+            const file = await db.getFile(fileId)
+            const resolvedUrl = file.url || file.data
             newResolvedImages[inspiration.image] = resolvedUrl
           } catch (error) {
             console.error("Error resolving image:", error)
@@ -149,8 +152,8 @@ export function InspirationManager({ onInspirationSaved }: InspirationManagerPro
       title: inspiration.title,
       description: inspiration.description,
       image: inspiration.image,
-      category: inspiration.category,
-      tags: inspiration.tags.join(", "),
+      category: inspiration.category || "living-room",
+      tags: (inspiration.tags || []).join(", "),
       isActive: inspiration.isActive,
       sortOrder: inspiration.sortOrder,
       cropSettings: (inspiration as any).cropSettings || {
@@ -165,40 +168,28 @@ export function InspirationManager({ onInspirationSaved }: InspirationManagerPro
     setShowDialog(true)
   }
 
+  // Helper to upload a file to the backend and get its URL
+  const uploadFileToBackend = async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch('/api/files', {
+      method: 'POST',
+      body: formData,
+    });
+    if (!res.ok) throw new Error('Upload failed');
+    return await res.json(); // Should contain { url, ... }
+  };
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-
     try {
-      // Convert to base64
-      const reader = new FileReader()
-      reader.onload = async (event) => {
-        const base64Data = event.target?.result as string
-
-        // Save to database as a file
-        const fileId = `inspiration-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`
-        const fileData = {
-          id: fileId,
-          componentId: "inspiration",
-          type: "image" as const,
-          data: base64Data,
-          filename: file.name,
-          mimeType: file.type,
-          createdAt: new Date(),
-        }
-
-        await db.saveFile(fileData)
-
-        // Update form with db:// reference
-        setFormData((prev) => ({
-          ...prev,
-          image: `db://${fileId}`,
-        }))
-
-        console.log("Inspiration image uploaded:", fileId)
-      }
-
-      reader.readAsDataURL(file)
+      const backendFile = await uploadFileToBackend(file)
+      setFormData((prev) => ({
+        ...prev,
+        image: backendFile.url,
+      }))
+      console.log("Inspiration image uploaded:", backendFile.url)
     } catch (error) {
       console.error("Error uploading inspiration image:", error)
       alert("Error uploading image")
@@ -209,7 +200,9 @@ export function InspirationManager({ onInspirationSaved }: InspirationManagerPro
     try {
       let url = imageUrl
       if (imageUrl.startsWith("db://")) {
-        url = await db.resolveFileUrl(imageUrl)
+        const fileId = imageUrl.replace("db://", "")
+        const file = await db.getFile(fileId)
+        url = file.url || file.data
       }
       setCropPreviewUrl(url)
       setCropSettings(formData.cropSettings)
@@ -281,7 +274,7 @@ export function InspirationManager({ onInspirationSaved }: InspirationManagerPro
         title: formData.title.trim(),
         description: formData.description.trim(),
         image: formData.image,
-        category: formData.category,
+        category: formData.category || "living-room",
         tags: formData.tags
           .split(",")
           .map((tag) => tag.trim())
@@ -385,11 +378,13 @@ export function InspirationManager({ onInspirationSaved }: InspirationManagerPro
   }
 
   const getImagePreview = (imageUrl: string) => {
-    if (imageUrl.startsWith("db://")) {
-      // Return resolved image or loading placeholder
-      return resolvedImages[imageUrl] || "/placeholder.svg?height=60&width=80&text=Loading"
+    if (imageUrl.startsWith("/uploads/")) {
+      return imageUrl
     }
-    return imageUrl || "/placeholder.svg?height=60&width=80&text=No+Image"
+    if (imageUrl.startsWith("http")) {
+      return imageUrl
+    }
+    return "/placeholder.svg?height=60&width=80&text=No+Image"
   }
 
   if (isLoading) {
@@ -600,6 +595,8 @@ export function InspirationManager({ onInspirationSaved }: InspirationManagerPro
                     type="button"
                     variant={uploadMethod === "upload" ? "default" : "outline"}
                     onClick={() => setUploadMethod("upload")}
+                    aria-label="Upload File"
+                    title="Upload File"
                   >
                     <Upload className="w-4 h-4 mr-2" />
                     Upload File
@@ -608,6 +605,8 @@ export function InspirationManager({ onInspirationSaved }: InspirationManagerPro
                     type="button"
                     variant={uploadMethod === "url" ? "default" : "outline"}
                     onClick={() => setUploadMethod("url")}
+                    aria-label="Use URL"
+                    title="Use URL"
                   >
                     <Link className="w-4 h-4 mr-2" />
                     Use URL
@@ -621,8 +620,9 @@ export function InspirationManager({ onInspirationSaved }: InspirationManagerPro
                       type="file"
                       accept="image/*"
                       onChange={handleFileUpload}
-                      style={{ display: "none" }}
+                      className={styles.fileInput}
                       aria-label="Upload inspiration image file"
+                      title="Upload inspiration image file"
                     />
                     <Button
                       type="button"
@@ -643,6 +643,8 @@ export function InspirationManager({ onInspirationSaved }: InspirationManagerPro
                     value={formData.image.startsWith("db://") ? "" : formData.image}
                     onChange={(e) => setFormData({ ...formData, image: e.target.value.trim() })}
                     placeholder="https://example.com/image.jpg"
+                    aria-label="Image URL"
+                    title="Image URL"
                     onBlur={(e) => {
                       const url = e.target.value.trim()
                       if (url && !url.startsWith("http")) {
@@ -653,20 +655,29 @@ export function InspirationManager({ onInspirationSaved }: InspirationManagerPro
                 )}
 
                 {formData.image && (
-                  <div className="border rounded p-2">
-                    <div className="flex justify-between items-center mb-2">
-                      <p className="text-sm text-gray-600">Preview:</p>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => openCropDialog(formData.image)}
-                        className="flex items-center gap-1"
-                      >
-                        <Crop className="w-3 h-3 mr-1" />
-                        Adjust Crop
-                      </Button>
+                  <div className={styles.cropContainer}>
+                    <div className={styles.cropImage}>
+                      <div className={styles.cropPreview}>
+                        <img
+                          ref={cropImageRef}
+                          src={cropPreviewUrl || "/placeholder.svg"}
+                          alt="Original"
+                          className={styles.cropImage}
+                          onLoad={updateCropPreview}
+                        />
+                      </div>
+                      <div className={styles.cropOverlay}>
+                        <div
+                          className={styles.cropOverlayInner}
+                          style={{
+                            top: `${cropSettings.y}%`,
+                            left: `${cropSettings.x}%`,
+                            width: `${cropSettings.width}%`,
+                            height: `${cropSettings.height}%`,
+                          }}
+                        ></div>
+                      </div>
                     </div>
-                    <FormImagePreview imageUrl={formData.image} cropSettings={formData.cropSettings} />
                   </div>
                 )}
               </div>
@@ -687,18 +698,28 @@ export function InspirationManager({ onInspirationSaved }: InspirationManagerPro
                 id="isActive"
                 checked={formData.isActive}
                 onCheckedChange={(checked) => setFormData({ ...formData, isActive: checked })}
+                aria-label="Active (visible in carousel)"
+                title="Active (visible in carousel)"
               />
               <Label htmlFor="isActive">Active (visible in carousel)</Label>
             </div>
 
             <div className="flex justify-end space-x-2 pt-4 border-t">
-              <Button type="button" variant="outline" onClick={() => setShowDialog(false)}>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowDialog(false)}
+                aria-label="Cancel"
+                title="Cancel"
+              >
                 <X className="w-4 h-4 mr-2" />
                 Cancel
               </Button>
               <Button
                 onClick={handleSave}
                 disabled={!formData.title.trim() || !formData.description.trim() || !formData.image.trim()}
+                aria-label={editingInspiration ? "Update Inspiration" : "Create Inspiration"}
+                title={editingInspiration ? "Update Inspiration" : "Create Inspiration"}
               >
                 <Save className="w-4 h-4 mr-2" />
                 {editingInspiration ? "Update" : "Create"} Inspiration
@@ -727,14 +748,18 @@ export function InspirationManager({ onInspirationSaved }: InspirationManagerPro
                   onLoad={updateCropPreview}
                 />
                 <div
-                  className="absolute border-2 border-blue-500 bg-blue-500/10 pointer-events-none"
-                  style={{
-                    top: `${cropSettings.y}%`,
-                    left: `${cropSettings.x}%`,
-                    width: `${cropSettings.width}%`,
-                    height: `${cropSettings.height}%`,
-                  }}
-                ></div>
+                  className={styles.cropOverlay}
+                >
+                  <div
+                    className={styles.cropOverlayInner}
+                    style={{
+                      top: `${cropSettings.y}%`,
+                      left: `${cropSettings.x}%`,
+                      width: `${cropSettings.width}%`,
+                      height: `${cropSettings.height}%`,
+                    }}
+                  ></div>
+                </div>
               </div>
               <div className="flex-1 space-y-4">
                 <div>
@@ -843,25 +868,16 @@ function FormImagePreview({ imageUrl, cropSettings }: { imageUrl: string; cropSe
   const imageRef = useRef<HTMLImageElement>(null)
 
   useEffect(() => {
-    const resolveImage = async () => {
-      setIsLoading(true)
-      try {
-        if (imageUrl.startsWith("db://")) {
-          const resolved = await db.resolveFileUrl(imageUrl)
-          setResolvedUrl(resolved)
-        } else {
-          setResolvedUrl(imageUrl)
-        }
-      } catch (error) {
-        console.error("Error resolving form image:", error)
-        setResolvedUrl("/placeholder.svg?height=400&width=600&text=Error")
-      } finally {
-        setIsLoading(false)
-      }
-    }
-
-    if (imageUrl) {
-      resolveImage()
+    setIsLoading(true)
+    if (imageUrl.startsWith("/uploads/")) {
+      setResolvedUrl(imageUrl)
+      setIsLoading(false)
+    } else if (imageUrl.startsWith("http")) {
+      setResolvedUrl(imageUrl)
+      setIsLoading(false)
+    } else {
+      setResolvedUrl("/placeholder.svg?height=400&width=600&text=Error")
+      setIsLoading(false)
     }
   }, [imageUrl])
 

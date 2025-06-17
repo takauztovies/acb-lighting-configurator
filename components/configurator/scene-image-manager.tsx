@@ -48,7 +48,7 @@ export function SceneImageManager() {
           return
         }
 
-        dispatch({ type: "SET_SCENE_IMAGE", image: result })
+        dispatch({ type: "SET_SCENE_IMAGE", surface: "main", imageData: result })
 
         // Auto-detect image dimensions and adjust scale
         const img = new Image()
@@ -138,14 +138,14 @@ export function SceneImageManager() {
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+        <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" title="Upload scene image" placeholder="Choose image file" />
 
-        {state.sceneImage && (
+        {state.sceneImageSettings && state.sceneImageSettings["main"] && (
           <>
             {/* Image preview */}
             <div className="relative">
               <img
-                src={state.sceneImage || "/placeholder.svg?height=100&width=150&text=No+Image"}
+                src={state.sceneImageSettings["main"] || "/placeholder.svg?height=100&width=150&text=No+Image"}
                 alt="Scene background"
                 className="w-full h-24 object-cover rounded border"
                 onError={(e) => {
@@ -302,7 +302,7 @@ export function SceneImageManager() {
                     key={preset.name}
                     size="sm"
                     variant="outline"
-                    onClick={() => setImageSettings(preset.settings)}
+                    onClick={() => setImageSettings(preset.settings as SceneImageSettings)}
                     className="text-xs"
                   >
                     {preset.name}
@@ -316,7 +316,8 @@ export function SceneImageManager() {
               size="sm"
               variant="outline"
               onClick={() => {
-                if (state.sceneImage && state.sceneImage !== "undefined" && state.sceneImage !== "null") {
+                const imageData = state.sceneImageSettings && state.sceneImageSettings["main"];
+                if (imageData && imageData !== "undefined" && imageData !== "null") {
                   const img = new Image()
                   img.onload = () => {
                     const aspectRatio = img.width / img.height
@@ -337,7 +338,7 @@ export function SceneImageManager() {
                   img.onerror = () => {
                     console.error("Failed to load scene image for auto-fit")
                   }
-                  img.src = state.sceneImage
+                  img.src = imageData
                 }
               }}
               className="text-xs w-full"
@@ -349,11 +350,8 @@ export function SceneImageManager() {
             <Button
               className="w-full"
               onClick={() => {
-                // Store the image settings in the global state
-                dispatch({
-                  type: "SET_SCENE_IMAGE_SETTINGS",
-                  settings: imageSettings,
-                })
+                // TODO: Implement storing image settings in the global state if needed
+                // dispatch({ type: "SET_SCENE_IMAGE_SETTINGS", settings: imageSettings })
               }}
             >
               Apply Settings

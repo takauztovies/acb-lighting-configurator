@@ -770,10 +770,10 @@ const PresetPreview = React.memo(function PresetPreview({
       <div>
         <h4 className="font-medium mb-2">Components in Preset</h4>
         <div className="space-y-2 max-h-48 overflow-y-auto">
-          {preset.components.map((comp, index) => {
+          {preset.components.map((comp) => {
             const component = safeComponents.find((c) => c.id === comp.componentId)
             return (
-              <div key={index} className="flex items-center justify-between bg-gray-50 p-3 rounded">
+              <div key={comp.componentId} className="flex items-center justify-between bg-gray-50 p-3 rounded">
                 <div className="flex items-center space-x-3">
                   <img
                     src={component?.image || "/placeholder.svg?height=32&width=32&text=Component"}

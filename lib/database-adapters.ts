@@ -26,6 +26,9 @@ export interface DatabaseAdapter {
   clearAll(): Promise<void>
   exportData(): Promise<string>
   importData(data: string): Promise<void>
+
+  // New operations
+  getFile(id: string): Promise<any>
 }
 
 import type { ComponentData, BundleData, PresetData, InspirationData } from "./database"
@@ -223,6 +226,10 @@ export class IndexedDBAdapter implements DatabaseAdapter {
       request.onsuccess = () => resolve()
     })
   }
+
+  async getFile(id: string): Promise<any> {
+    throw new Error('getFile is not implemented for IndexedDBAdapter')
+  }
 }
 
 // REST API Adapter
@@ -246,22 +253,24 @@ export class RestAPIAdapter implements DatabaseAdapter {
   }
 
   async init(): Promise<void> {
-    // REST API doesn't need initialization
+    // No initialization needed for REST API
   }
 
   async testConnection(): Promise<boolean> {
     try {
-      const response = await fetch(`${this.baseUrl}/health`, {
+      await fetch(this.baseUrl + "/components", {
+        method: "GET",
         headers: this.getHeaders(),
       })
-      return response.ok
+      return true
     } catch {
       return false
     }
   }
 
   async getComponents(): Promise<ComponentData[]> {
-    const response = await fetch(`${this.baseUrl}/components`, {
+    const response = await fetch(this.baseUrl + "/components", {
+      method: "GET",
       headers: this.getHeaders(),
     })
     if (!response.ok) throw new Error("Failed to fetch components")
@@ -269,8 +278,9 @@ export class RestAPIAdapter implements DatabaseAdapter {
   }
 
   async saveComponent(component: ComponentData): Promise<void> {
-    const response = await fetch(`${this.baseUrl}/components/${component.id}`, {
-      method: "PUT",
+    const method = component.id ? "PUT" : "POST"
+    const response = await fetch(this.baseUrl + "/components", {
+      method,
       headers: this.getHeaders(),
       body: JSON.stringify(component),
     })
@@ -278,17 +288,19 @@ export class RestAPIAdapter implements DatabaseAdapter {
   }
 
   async deleteComponents(ids: string[]): Promise<void> {
-    for (const id of ids) {
-      const response = await fetch(`${this.baseUrl}/components/${id}`, {
-        method: "DELETE",
-        headers: this.getHeaders(),
-      })
-      if (!response.ok) throw new Error(`Failed to delete component ${id}`)
-    }
+    await Promise.all(
+      ids.map((id) =>
+        fetch(this.baseUrl + "/components?id=" + id, {
+          method: "DELETE",
+          headers: this.getHeaders(),
+        })
+      )
+    )
   }
 
   async getBundles(): Promise<BundleData[]> {
-    const response = await fetch(`${this.baseUrl}/bundles`, {
+    const response = await fetch(this.baseUrl + "/bundles", {
+      method: "GET",
       headers: this.getHeaders(),
     })
     if (!response.ok) throw new Error("Failed to fetch bundles")
@@ -296,8 +308,9 @@ export class RestAPIAdapter implements DatabaseAdapter {
   }
 
   async saveBundle(bundle: BundleData): Promise<void> {
-    const response = await fetch(`${this.baseUrl}/bundles/${bundle.id}`, {
-      method: "PUT",
+    const method = bundle.id ? "PUT" : "POST"
+    const response = await fetch(this.baseUrl + "/bundles", {
+      method,
       headers: this.getHeaders(),
       body: JSON.stringify(bundle),
     })
@@ -305,7 +318,7 @@ export class RestAPIAdapter implements DatabaseAdapter {
   }
 
   async deleteBundle(id: string): Promise<void> {
-    const response = await fetch(`${this.baseUrl}/bundles/${id}`, {
+    const response = await fetch(this.baseUrl + "/bundles?id=" + id, {
       method: "DELETE",
       headers: this.getHeaders(),
     })
@@ -313,7 +326,8 @@ export class RestAPIAdapter implements DatabaseAdapter {
   }
 
   async getPresets(): Promise<PresetData[]> {
-    const response = await fetch(`${this.baseUrl}/presets`, {
+    const response = await fetch(this.baseUrl + "/presets", {
+      method: "GET",
       headers: this.getHeaders(),
     })
     if (!response.ok) throw new Error("Failed to fetch presets")
@@ -321,8 +335,8 @@ export class RestAPIAdapter implements DatabaseAdapter {
   }
 
   async savePreset(preset: PresetData): Promise<void> {
-    const response = await fetch(`${this.baseUrl}/presets/${preset.id}`, {
-      method: "PUT",
+    const response = await fetch(this.baseUrl + "/presets", {
+      method: "POST",
       headers: this.getHeaders(),
       body: JSON.stringify(preset),
     })
@@ -330,7 +344,7 @@ export class RestAPIAdapter implements DatabaseAdapter {
   }
 
   async deletePreset(id: string): Promise<void> {
-    const response = await fetch(`${this.baseUrl}/presets/${id}`, {
+    const response = await fetch(this.baseUrl + "/presets?id=" + id, {
       method: "DELETE",
       headers: this.getHeaders(),
     })
@@ -338,7 +352,8 @@ export class RestAPIAdapter implements DatabaseAdapter {
   }
 
   async getInspirations(): Promise<InspirationData[]> {
-    const response = await fetch(`${this.baseUrl}/inspirations`, {
+    const response = await fetch(this.baseUrl + "/inspirations", {
+      method: "GET",
       headers: this.getHeaders(),
     })
     if (!response.ok) throw new Error("Failed to fetch inspirations")
@@ -346,8 +361,8 @@ export class RestAPIAdapter implements DatabaseAdapter {
   }
 
   async saveInspiration(inspiration: InspirationData): Promise<void> {
-    const response = await fetch(`${this.baseUrl}/inspirations/${inspiration.id}`, {
-      method: "PUT",
+    const response = await fetch(this.baseUrl + "/inspirations", {
+      method: "POST",
       headers: this.getHeaders(),
       body: JSON.stringify(inspiration),
     })
@@ -355,7 +370,7 @@ export class RestAPIAdapter implements DatabaseAdapter {
   }
 
   async deleteInspiration(id: string): Promise<void> {
-    const response = await fetch(`${this.baseUrl}/inspirations/${id}`, {
+    const response = await fetch(this.baseUrl + "/inspirations?id=" + id, {
       method: "DELETE",
       headers: this.getHeaders(),
     })
@@ -363,7 +378,7 @@ export class RestAPIAdapter implements DatabaseAdapter {
   }
 
   async clearAll(): Promise<void> {
-    const response = await fetch(`${this.baseUrl}/clear`, {
+    const response = await fetch(this.baseUrl + "/clear", {
       method: "DELETE",
       headers: this.getHeaders(),
     })
@@ -371,7 +386,8 @@ export class RestAPIAdapter implements DatabaseAdapter {
   }
 
   async exportData(): Promise<string> {
-    const response = await fetch(`${this.baseUrl}/export`, {
+    const response = await fetch(this.baseUrl + "/export", {
+      method: "GET",
       headers: this.getHeaders(),
     })
     if (!response.ok) throw new Error("Failed to export data")
@@ -379,11 +395,20 @@ export class RestAPIAdapter implements DatabaseAdapter {
   }
 
   async importData(data: string): Promise<void> {
-    const response = await fetch(`${this.baseUrl}/import`, {
+    const response = await fetch(this.baseUrl + "/import", {
       method: "POST",
       headers: this.getHeaders(),
       body: data,
     })
     if (!response.ok) throw new Error("Failed to import data")
+  }
+
+  async getFile(id: string): Promise<any> {
+    const response = await fetch(this.baseUrl + "/files/" + id, {
+      method: "GET",
+      headers: this.getHeaders(),
+    })
+    if (!response.ok) throw new Error('Failed to fetch file')
+    return response.json()
   }
 }

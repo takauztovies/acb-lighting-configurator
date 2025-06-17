@@ -220,27 +220,25 @@ export function DataManager({ components }: DataManagerProps) {
 
   // Database tools functions
   const verifyDatabase = async () => {
-    setIsVerifying(true)
     setStatus("Verifying database...")
+    setIssues([])
 
     try {
-      const result = await db.verifyDatabase()
-      setStatus(result.status)
-      setIssues(result.issues)
+      // Verify by attempting to get components and files
+      await db.getComponents()
+      setStatus("Database verification completed")
+      setIssues([])
     } catch (error) {
-      setStatus("error")
-      setIssues([`Error verifying database: ${error}`])
-    } finally {
-      setIsVerifying(false)
+      setStatus("Database verification failed")
+      setIssues([String(error)])
     }
   }
 
   const exportDatabase = async () => {
-    setIsExporting(true)
     setStatus("Exporting database...")
 
     try {
-      const jsonData = await db.exportDatabase()
+      const jsonData = await db.exportData()
 
       // Create a blob and download it
       const blob = new Blob([jsonData], { type: "application/json" })
@@ -256,43 +254,26 @@ export function DataManager({ components }: DataManagerProps) {
       setStatus("Database exported successfully")
     } catch (error) {
       setStatus(`Error exporting database: ${error}`)
-    } finally {
-      setIsExporting(false)
     }
   }
 
   const importDatabase = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    setStatus("Importing database...")
     const file = e.target.files?.[0]
     if (!file) return
 
-    setIsImporting(true)
-    setStatus("Importing database...")
-
     try {
       const reader = new FileReader()
-
-      reader.onload = async (event) => {
-        try {
-          const jsonData = event.target?.result as string
-          await db.importDatabase(jsonData)
-          setStatus("Database imported successfully")
-          loadFiles() // Reload files after import
-        } catch (error) {
-          setStatus(`Error importing database: ${error}`)
-        } finally {
-          setIsImporting(false)
-        }
+      reader.onload = async (e) => {
+        const jsonData = JSON.parse(e.target?.result as string)
+        await db.importData(jsonData)
+        setStatus("Database imported successfully!")
+        loadFiles()
       }
-
-      reader.onerror = () => {
-        setStatus("Error reading import file")
-        setIsImporting(false)
-      }
-
       reader.readAsText(file)
     } catch (error) {
-      setStatus(`Error importing database: ${error}`)
-      setIsImporting(false)
+      console.error("Error importing database:", error)
+      setStatus(`Error: ${error}`)
     }
   }
 

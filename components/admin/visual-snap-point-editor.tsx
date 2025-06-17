@@ -268,7 +268,7 @@ function SnapPointEditor3D({
   isPlacementMode: boolean
   isEditMode: boolean
   onSnapPointClick: (snapPointId: string) => void
-  onSnapPointPlace: (position: [number, number, number]) => void
+  onSnapPointPlace: (position: [number, number, number], faceInfo?: any) => void
   onSnapPointMove: (snapPointId: string, position: [number, number, number]) => void
 }) {
   // Ensure component has valid position
@@ -297,20 +297,22 @@ function ModelWithSnapPoints({ component, snapPoints, isPlacementMode, onCompone
   component: ComponentData
   snapPoints: SnapPoint[]
   isPlacementMode: boolean
-  onComponentClick: (position: [number, number, number]) => void
+  onComponentClick: (position: [number, number, number], faceInfo?: any) => void
 }) {
   const meshRef = useRef<THREE.Group>(null)
   const [loadedModel, setLoadedModel] = useState<THREE.Group | null>(null)
   const [modelUrl, setModelUrl] = useState<string | null>(null)
   const { raycaster, mouse, camera, gl } = useThree();
   const [hoverPoint, setHoverPoint] = useState<THREE.Vector3 | null>(null)
+  const [modelBoundingBox, setModelBoundingBox] = useState<{ box: THREE.Box3, center: THREE.Vector3 } | null>(null)
 
   // Load model URL (db:// or direct)
   useEffect(() => {
     if (!component.model3d) return setModelUrl(null)
     if (component.model3d.startsWith("db://")) {
       const fileId = component.model3d.replace("db://", "")
-      db.getFile(fileId).then(file => {
+      // Now works with backend RestAPIAdapter
+      db.getFile(fileId).then((file: { data: string }) => {
         if (file && file.data && file.data.startsWith("data:")) {
           fetch(file.data).then(res => res.blob()).then(blob => {
             setModelUrl(URL.createObjectURL(blob))
@@ -327,27 +329,94 @@ function ModelWithSnapPoints({ component, snapPoints, isPlacementMode, onCompone
     if (!modelUrl) return setLoadedModel(null)
     const loader = new OBJLoader()
     loader.load(modelUrl, (object: THREE.Group) => {
+      // Bake transforms into child meshes
+      object.updateMatrixWorld(true);
+      object.traverse((child) => {
+        if ((child as THREE.Mesh).isMesh) {
+          const mesh = child as THREE.Mesh;
+          mesh.updateMatrixWorld(true);
+          mesh.geometry.applyMatrix4(mesh.matrixWorld);
+          mesh.position.set(0, 0, 0);
+          mesh.rotation.set(0, 0, 0);
+          mesh.scale.set(1, 1, 1);
+        }
+      });
       // Center and scale model
       const box = new THREE.Box3().setFromObject(object)
       const size = box.getSize(new THREE.Vector3())
       const maxDim = Math.max(size.x, size.y, size.z)
+      const center = box.getCenter(new THREE.Vector3())
+      console.log('[DEBUG] Model bounding box:', box)
+      console.log('[DEBUG] Model bounding box center:', center)
       if (maxDim > 0) {
         const scale = 1 / maxDim
         object.scale.setScalar(scale)
-        const center = box.getCenter(new THREE.Vector3())
         object.position.sub(center.multiplyScalar(scale))
+        // Force model to origin after centering/scaling
+        object.position.set(0, 0, 0)
       }
+      // Debug: log model structure
+      console.log('[DEBUG] Loaded OBJ model structure:', object);
+      // NEW: Log all meshes and force double-sided
+      object.traverse((child) => {
+        if ((child as THREE.Mesh).isMesh) {
+          const mesh = child as THREE.Mesh;
+          console.log('[DEBUG] Mesh:', mesh.name, mesh, {
+            visible: mesh.visible,
+            material: mesh.material,
+            position: mesh.position,
+            geometry: mesh.geometry,
+          });
+          // Log bounding box and geometry info
+          if (mesh.geometry) {
+            mesh.geometry.computeBoundingBox();
+            const bbox = mesh.geometry.boundingBox;
+            console.log('[DEBUG] Mesh bounding box:', bbox);
+            console.log('[DEBUG] Mesh geometry index:', mesh.geometry.index);
+            console.log('[DEBUG] Mesh geometry position attribute:', mesh.geometry.attributes.position);
+          }
+          if (mesh.material) {
+            if (Array.isArray(mesh.material)) {
+              mesh.material.forEach((mat) => {
+                mat.side = THREE.DoubleSide;
+                mat.visible = true;
+              });
+            } else {
+              mesh.material.side = THREE.DoubleSide;
+              mesh.material.visible = true;
+            }
+          }
+          mesh.visible = true;
+        }
+      });
       setLoadedModel(object)
+      // Store bounding box and center for visualization
+      setModelBoundingBox({ box: box.clone(), center: center.clone() })
     })
   }, [modelUrl])
+
+  // Utility to collect all meshes from a group
+  function getAllMeshes(group: THREE.Object3D): THREE.Mesh[] {
+    const meshes: THREE.Mesh[] = [];
+    group.traverse((child) => {
+      if ((child as THREE.Mesh).isMesh) {
+        meshes.push(child as THREE.Mesh);
+      }
+    });
+    return meshes;
+  }
 
   // Hover/preview logic for placement mode
   useFrame(() => {
     if (isPlacementMode && meshRef.current) {
       raycaster.setFromCamera(mouse, camera);
-      const intersects = loadedModel
-        ? raycaster.intersectObject(loadedModel, true)
-        : raycaster.intersectObject(meshRef.current, true);
+      let intersects: any[] = [];
+      if (loadedModel) {
+        const meshes = getAllMeshes(loadedModel);
+        intersects = raycaster.intersectObjects(meshes, true);
+      } else {
+        intersects = raycaster.intersectObject(meshRef.current, true);
+      }
       if (intersects.length > 0) {
         setHoverPoint(intersects[0].point.clone());
       } else {
@@ -368,15 +437,38 @@ function ModelWithSnapPoints({ component, snapPoints, isPlacementMode, onCompone
     const rect = gl.domElement.getBoundingClientRect();
     const x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
     const y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    console.log('[DEBUG] PointerDown event:', {
+      clientX: event.clientX,
+      clientY: event.clientY,
+      rect,
+      normalized: { x, y }
+    });
     raycaster.setFromCamera(new THREE.Vector2(x, y), camera);
-    const intersects = loadedModel
-      ? raycaster.intersectObject(loadedModel, true)
-      : raycaster.intersectObject(meshRef.current, true);
+    console.log('[DEBUG] Raycaster:', {
+      origin: raycaster.ray.origin,
+      direction: raycaster.ray.direction
+    });
+    let intersects: any[] = [];
+    if (loadedModel) {
+      const meshes = getAllMeshes(loadedModel);
+      intersects = raycaster.intersectObjects(meshes, true);
+    } else {
+      intersects = raycaster.intersectObject(meshRef.current, true);
+    }
+    console.log('[DEBUG] handlePointerDown fired. intersects:', intersects);
     if (intersects.length > 0) {
       // Convert world position to local position
       const intersect = intersects[0];
       const localPos = meshRef.current.worldToLocal(intersect.point.clone());
-      onComponentClick([localPos.x, localPos.y, localPos.z]);
+      console.log('[DEBUG] Intersection found. localPos:', localPos, 'face:', intersect.face, 'object:', intersect.object);
+      onComponentClick([localPos.x, localPos.y, localPos.z], intersect.face ? {
+        face: intersect.face,
+        object: intersect.object,
+        faceIndex: intersect.faceIndex,
+        geometry: (intersect.object as THREE.Mesh).geometry
+      } : undefined);
+    } else {
+      console.log('[DEBUG] No intersection found on click.');
     }
   };
 
@@ -390,6 +482,18 @@ function ModelWithSnapPoints({ component, snapPoints, isPlacementMode, onCompone
           <meshStandardMaterial color="#666" opacity={0.7} transparent />
         </mesh>
       )}
+      {/* Visualize model's bounding box as a wireframe */}
+      {modelBoundingBox && (
+        <mesh position={modelBoundingBox.box.getCenter(new THREE.Vector3())}>
+          <boxGeometry args={modelBoundingBox.box.getSize(new THREE.Vector3()).toArray()} />
+          <meshBasicMaterial color="#ff0000" wireframe opacity={0.5} transparent />
+        </mesh>
+      )}
+      {/* Debug: Transparent box at origin */}
+      <mesh position={[0, 0, 0]}>
+        <boxGeometry args={[1, 1, 1]} />
+        <meshBasicMaterial color="#00ff00" transparent opacity={0.1} wireframe />
+      </mesh>
       {/* Render snap points using ComponentSnapPoint */}
       {snapPoints.map((sp) => (
         <ComponentSnapPoint
@@ -478,7 +582,8 @@ export function VisualSnapPointEditor({ component, onSnapPointsUpdated, onClose 
     setSaveStatus("")
   }
 
-  const handleSnapPointPlace = (position: [number, number, number]) => {
+  const handleSnapPointPlace = (position: [number, number, number], faceInfo?: any) => {
+    console.log('[DEBUG] handleSnapPointPlace called. position:', position, 'faceInfo:', faceInfo);
     const newId = `snap-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
     debugLog("Placing new snap point with ID:", newId)
 
@@ -515,6 +620,25 @@ export function VisualSnapPointEditor({ component, onSnapPointsUpdated, onClose 
       placementSide = "custom";
     }
 
+    // Store faceInfo if available
+    let faceData: { faceIndex: number; vertexIndices: [number, number, number]; geometry?: any } | undefined = undefined;
+    if (faceInfo && faceInfo.face && faceInfo.object && faceInfo.geometry) {
+      const a = faceInfo.geometry.index?.array[faceInfo.face.a];
+      const b = faceInfo.geometry.index?.array[faceInfo.face.b];
+      const c = faceInfo.geometry.index?.array[faceInfo.face.c];
+      if (
+        typeof a === 'number' &&
+        typeof b === 'number' &&
+        typeof c === 'number'
+      ) {
+        faceData = {
+          faceIndex: faceInfo.faceIndex,
+          vertexIndices: [a, b, c],
+          geometry: faceInfo.geometry,
+        };
+      }
+    }
+
     const newSnapPoint: SnapPoint = {
       ...(getDefaultSnapPoint() as SnapPoint),
       id: newId,
@@ -526,9 +650,9 @@ export function VisualSnapPointEditor({ component, onSnapPointsUpdated, onClose 
       type: "mechanical",
       createdAt: new Date(),
       updatedAt: new Date(),
+      faceData,
     };
-
-    debugLog("Creating new snap point:", newSnapPoint)
+    console.log('[DEBUG] Creating new snap point:', newSnapPoint);
 
     // Filter out any invalid snap points before adding the new one
     const validSnapPoints = snapPoints.filter(isValidSnapPoint)
@@ -1064,6 +1188,42 @@ export function VisualSnapPointEditor({ component, onSnapPointsUpdated, onClose 
                   </Button>
                 </div>
               </>
+            )}
+
+            {editingSnapPoint && editingSnapPoint.faceData && (
+              <Button
+                variant="outline"
+                className="w-full mt-2"
+                onClick={() => {
+                  // Type guard: ensure faceData and selectedSnapPoint.faceData are defined
+                  const faceData = editingSnapPoint.faceData;
+                  if (
+                    faceData &&
+                    Array.isArray(faceData.vertexIndices) &&
+                    faceData.vertexIndices.length === 3 &&
+                    selectedSnapPoint &&
+                    selectedSnapPoint.faceData &&
+                    selectedSnapPoint.faceData.geometry
+                  ) {
+                    const geometry = selectedSnapPoint.faceData.geometry || (selectedSnapPoint as any).geometry;
+                    if (geometry && geometry.attributes && geometry.attributes.position) {
+                      const posAttr = geometry.attributes.position;
+                      const vA = new THREE.Vector3().fromBufferAttribute(posAttr, faceData.vertexIndices[0]);
+                      const vB = new THREE.Vector3().fromBufferAttribute(posAttr, faceData.vertexIndices[1]);
+                      const vC = new THREE.Vector3().fromBufferAttribute(posAttr, faceData.vertexIndices[2]);
+                      const center = new THREE.Vector3()
+                        .addVectors(vA, vB)
+                        .add(vC)
+                        .divideScalar(3);
+                      // Update snap point position
+                      handleSnapPointMove(selectedSnapPoint.id, [center.x, center.y, center.z]);
+                      setFormData((prev) => ({ ...prev, position: [center.x, center.y, center.z] }));
+                    }
+                  }
+                }}
+              >
+                Snap to Face Center
+              </Button>
             )}
           </div>
         </div>

@@ -26,6 +26,16 @@ interface HangingOption {
   power: string
 }
 
+interface SocketPosition {
+  wall: string;
+  distanceFromLeft: number;
+  distanceFromBottom: number;
+  x: number;
+  y: number;
+  z: number;
+  description: string;
+}
+
 interface SetupData {
   roomDimensions: {
     width: number
@@ -33,11 +43,7 @@ interface SetupData {
     height: number
   }
   powerSource: string | null
-  socketPosition: {
-    wall: string
-    distanceFromLeft: number
-    distanceFromBottom: number
-  } | null
+  socketPosition: SocketPosition | null
   hangingType: string | null
   hangingHeight: number
   trackLayout: {
@@ -90,7 +96,18 @@ export function SimpleGuidedSetup({ isOpen, onClose, onComplete }: SimpleGuidedS
   }, [])
 
   const handlePositionSelect = useCallback((position: any) => {
-    setSetupData((prev) => ({ ...prev, socketPosition: position }))
+    setSetupData((prev) => ({
+      ...prev,
+      socketPosition: {
+        wall: position.wall,
+        distanceFromLeft: position.distanceFromLeft ?? 0,
+        distanceFromBottom: position.distanceFromBottom ?? 0,
+        x: position.x ?? 0,
+        y: position.y ?? 0,
+        z: position.z ?? 0,
+        description: position.description ?? '',
+      },
+    }))
   }, [])
 
   const handleNext = () => {
@@ -236,6 +253,8 @@ export function SimpleGuidedSetup({ isOpen, onClose, onComplete }: SimpleGuidedS
                         setSetupData((prev) => ({ ...prev, hangingHeight: Number.parseFloat(e.target.value) }))
                       }
                       className="w-full"
+                      title="Adjust hanging height"
+                      placeholder="Adjust hanging height"
                     />
                     <div className="text-xs text-blue-700">
                       Recommended range:{" "}
@@ -305,9 +324,9 @@ export function SimpleGuidedSetup({ isOpen, onClose, onComplete }: SimpleGuidedS
                 <Card
                   key={option.id}
                   className={`cursor-pointer transition-all ${
-                    setupData.trackLayout === option.id ? "ring-2 ring-blue-500 bg-blue-50" : "hover:bg-gray-50"
+                    setupData.trackLayout?.type === option.id ? "ring-2 ring-blue-500 bg-blue-50" : "hover:bg-gray-50"
                   }`}
-                  onClick={() => setSetupData((prev) => ({ ...prev, trackLayout: option.id }))}
+                  onClick={() => setSetupData((prev) => ({ ...prev, trackLayout: { type: option.id, orientation: "default" } }))}
                 >
                   <CardContent className="p-4 text-center">
                     <Badge
@@ -340,8 +359,7 @@ export function SimpleGuidedSetup({ isOpen, onClose, onComplete }: SimpleGuidedS
                     {setupData.socketPosition?.distanceFromBottom?.toFixed(1)}m from bottom
                   </div>
                   <div>
-                    System: {setupData.hangingType} at {setupData.hangingHeight}m height with {setupData.trackLayout}{" "}
-                    layout
+                    System: {setupData.hangingType} at {setupData.hangingHeight}m height with {setupData.trackLayout ? `${setupData.trackLayout.type} (${setupData.trackLayout.orientation})` : "no layout"} layout
                   </div>
                 </div>
               </div>

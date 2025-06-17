@@ -311,57 +311,35 @@ export function MassUpload({ onUploadComplete }: MassUploadProps) {
 
           // Handle thumbnail image (goes to image field)
           let thumbnailUrl = ""
-          if (row.image) {
-            if (row.image.startsWith("http://") || row.image.startsWith("https://")) {
-              // Check if we downloaded this URL
-              if (urlImageMap.has(row.image)) {
-                thumbnailUrl = await saveBase64ToDatabase(
-                  urlImageMap.get(row.image)!,
-                  componentId,
-                  "image",
-                  `image-${componentId}.jpg`,
-                )
-              } else {
-                thumbnailUrl = row.image // Use URL directly if download failed
-              }
-            } else {
-              const thumbnailFile = fileMap.get(row.image.toLowerCase())
-              if (thumbnailFile) {
-                thumbnailUrl = await saveFileToDatabase(thumbnailFile, componentId, "image")
-              }
-            }
+          const thumbFile = row.image ? fileMap.get(row.image.toLowerCase()) : undefined
+          if (thumbFile) {
+            thumbnailUrl = await saveFileToDatabase(thumbFile, componentId, "image")
+          } else if (row.image && (row.image.startsWith("http://") || row.image.startsWith("https://"))) {
+            thumbnailUrl = row.image
+          } else if (row.image) {
+            console.warn(`Thumbnail image file not found for: ${row.image}`)
           }
 
           // Handle product detail image (goes to cardImage field)
           let productImageUrl = ""
-          if (row.cardImage) {
-            if (row.cardImage.startsWith("http://") || row.cardImage.startsWith("https://")) {
-              // Check if we downloaded this URL
-              if (urlImageMap.has(row.cardImage)) {
-                productImageUrl = await saveBase64ToDatabase(
-                  urlImageMap.get(row.cardImage)!,
-                  componentId,
-                  "image",
-                  `cardImage-${componentId}.jpg`,
-                )
-              } else {
-                productImageUrl = row.cardImage // Use URL directly if download failed
-              }
-            } else {
-              const productFile = fileMap.get(row.cardImage.toLowerCase())
-              if (productFile) {
-                productImageUrl = await saveFileToDatabase(productFile, componentId, "image")
-              }
-            }
+          const cardFile = row.cardImage ? fileMap.get(row.cardImage.toLowerCase()) : undefined
+          if (cardFile) {
+            productImageUrl = await saveFileToDatabase(cardFile, componentId, "image")
+          } else if (row.cardImage && (row.cardImage.startsWith("http://") || row.cardImage.startsWith("https://"))) {
+            productImageUrl = row.cardImage
+          } else if (row.cardImage) {
+            console.warn(`Product detail image file not found for: ${row.cardImage}`)
           }
 
           // Handle 3D model file
           let modelUrl = ""
-          if (row.model3d) {
-            const modelFile = fileMap.get(row.model3d.toLowerCase())
-            if (modelFile) {
-              modelUrl = await saveFileToDatabase(modelFile, componentId, "model3d")
-            }
+          const modelFile = row.model3d ? fileMap.get(row.model3d.toLowerCase()) : undefined
+          if (modelFile) {
+            modelUrl = await saveFileToDatabase(modelFile, componentId, "model3d")
+          } else if (row.model3d && (row.model3d.startsWith("http://") || row.model3d.startsWith("https://"))) {
+            modelUrl = row.model3d
+          } else if (row.model3d) {
+            console.warn(`3D model file not found for: ${row.model3d}`)
           }
 
           // Create component with correct image mapping
@@ -409,59 +387,25 @@ export function MassUpload({ onUploadComplete }: MassUploadProps) {
     }
   }
 
+  // Helper to upload a file to the backend and get its URL
+  const uploadFileToBackend = async (file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch('/api/files', {
+      method: 'POST',
+      body: formData,
+    });
+    if (!res.ok) throw new Error('Upload failed');
+    return await res.json(); // Should contain { url, ... }
+  };
+
   const saveFileToDatabase = async (
     file: File,
     componentId: string,
     fileType: "image" | "model3d",
   ): Promise<string> => {
-    const fileId = `${componentId}-${fileType}-${Date.now()}`
-
-    // Convert file to base64 for storage
-    const base64Data = await new Promise<string>((resolve) => {
-      const reader = new FileReader()
-      reader.onload = () => {
-        const result = reader.result as string
-        resolve(result)
-      }
-      reader.readAsDataURL(file)
-    })
-
-    const fileData = {
-      id: fileId,
-      componentId,
-      type: fileType,
-      data: base64Data,
-      filename: file.name,
-      mimeType: file.type,
-      createdAt: new Date(),
-      size: file.size,
-    }
-
-    await db.saveFile(fileData)
-    return `db://${fileId}`
-  }
-
-  const saveBase64ToDatabase = async (
-    base64Data: string,
-    componentId: string,
-    fileType: "image" | "model3d",
-    filename: string,
-  ): Promise<string> => {
-    const fileId = `${componentId}-${fileType}-${Date.now()}`
-
-    const fileData = {
-      id: fileId,
-      componentId,
-      type: fileType,
-      data: base64Data,
-      filename: filename,
-      mimeType: base64Data.startsWith("data:image/png") ? "image/png" : "image/jpeg",
-      createdAt: new Date(),
-      size: Math.round(base64Data.length * 0.75), // Approximate base64 to binary size
-    }
-
-    await db.saveFile(fileData)
-    return `db://${fileId}`
+    const backendFile = await uploadFileToBackend(file);
+    return backendFile.url;
   }
 
   return (
@@ -491,7 +435,7 @@ export function MassUpload({ onUploadComplete }: MassUploadProps) {
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium mb-2">1. Download Template</label>
-                  <Button onClick={downloadTemplate} variant="outline" className="w-full">
+                  <Button onClick={downloadTemplate} variant="outline" className="w-full" aria-label="Download Excel Template" title="Download Excel Template">
                     <Download className="w-4 h-4 mr-2" />
                     Download Excel Template
                   </Button>
@@ -505,6 +449,7 @@ export function MassUpload({ onUploadComplete }: MassUploadProps) {
                     accept=".xlsx,.xls"
                     className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200"
                     aria-label="Upload filled Excel file"
+                    title="Upload filled Excel file"
                   />
                 </div>
 
@@ -517,6 +462,7 @@ export function MassUpload({ onUploadComplete }: MassUploadProps) {
                     accept=".jpg,.jpeg,.png,.gif,.webp,.obj,.igs,.iges,.step,.stp"
                     className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-gray-100 file:text-gray-700 hover:file:bg-gray-200"
                     aria-label="Upload asset files (images and 3D models)"
+                    title="Upload asset files (images and 3D models)"
                   />
                   <p className="text-xs text-gray-500 mt-1">
                     Upload images (.jpg, .png, .gif, .webp) and 3D models (.obj, .igs, .step, .stp) referenced in your
@@ -524,7 +470,7 @@ export function MassUpload({ onUploadComplete }: MassUploadProps) {
                   </p>
                 </div>
 
-                <Button onClick={handleMassUpload} disabled={isProcessing} className="w-full">
+                <Button onClick={handleMassUpload} disabled={isProcessing} className="w-full" aria-label="Upload Components" title="Upload Components">
                   <Upload className="w-4 h-4 mr-2" />
                   {isProcessing ? "Processing..." : "Upload Components"}
                 </Button>

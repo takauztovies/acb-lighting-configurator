@@ -175,12 +175,28 @@ export function ComponentForm({ onComponentSaved, editingComponent }: ComponentF
   const uploadFileToBackend = async (file: File) => {
     const formData = new FormData();
     formData.append('file', file);
-    const res = await fetch('/api/files', {
-      method: 'POST',
-      body: formData,
-    });
-    if (!res.ok) throw new Error('Upload failed');
-    return await res.json(); // Should contain { url, ... }
+    
+    try {
+      const res = await fetch('/api/files', {
+        method: 'POST',
+        body: formData,
+      });
+      
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Upload failed');
+      }
+      
+      const data = await res.json();
+      if (!data.url) {
+        throw new Error('Invalid response from server');
+      }
+      
+      return data;
+    } catch (error) {
+      console.error('File upload error:', error);
+      throw error;
+    }
   };
 
   const saveFileToDatabase = async (
@@ -188,8 +204,13 @@ export function ComponentForm({ onComponentSaved, editingComponent }: ComponentF
     componentId: string,
     fileType: "image" | "model3d",
   ): Promise<string> => {
-    const backendFile = await uploadFileToBackend(file);
-    return backendFile.url;
+    try {
+      const uploadedFile = await uploadFileToBackend(file);
+      return uploadedFile.url;
+    } catch (error) {
+      console.error('Error saving file:', error);
+      throw new Error(error instanceof Error ? error.message : 'Failed to save file');
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -198,7 +219,8 @@ export function ComponentForm({ onComponentSaved, editingComponent }: ComponentF
     setSaveStatus("Saving component...")
 
     try {
-      const componentId = editingComponent?.id || `comp-${Date.now()}`
+      let componentId = editingComponent?.id
+      let isEdit = !!editingComponent
 
       // Prepare image URLs
       let finalImageUrl = ""
@@ -208,7 +230,7 @@ export function ComponentForm({ onComponentSaved, editingComponent }: ComponentF
       // FIXED: Swapped the assignments
       // Handle main image (detailed view) - goes to cardImage field
       if (imageMethod === "upload" && imageFile) {
-        finalCardImageUrl = await saveFileToDatabase(imageFile, componentId, "image")
+        finalCardImageUrl = await saveFileToDatabase(imageFile, componentId || '', "image")
         setSaveStatus("Saving main image...")
       } else if (imageMethod === "url" && imageUrl) {
         finalCardImageUrl = imageUrl
@@ -216,7 +238,7 @@ export function ComponentForm({ onComponentSaved, editingComponent }: ComponentF
 
       // Handle thumbnail image (selection) - goes to image field
       if (cardImageMethod === "upload" && cardImageFile) {
-        finalImageUrl = await saveFileToDatabase(cardImageFile, componentId, "image")
+        finalImageUrl = await saveFileToDatabase(cardImageFile, componentId || '', "image")
         setSaveStatus("Saving thumbnail image...")
       } else if (cardImageMethod === "url" && cardImageUrl) {
         finalImageUrl = cardImageUrl
@@ -224,14 +246,14 @@ export function ComponentForm({ onComponentSaved, editingComponent }: ComponentF
 
       // Handle 3D model
       if (modelMethod === "upload" && modelFile) {
-        finalModelUrl = await saveFileToDatabase(modelFile, componentId, "model3d")
+        finalModelUrl = await saveFileToDatabase(modelFile, componentId || '', "model3d")
         setSaveStatus("Saving 3D model...")
       } else if (modelMethod === "url" && modelUrl) {
         finalModelUrl = modelUrl
       }
 
-      const component: ComponentData = {
-        id: componentId,
+      // Prepare component data
+      let component: any = {
         name: formData.name,
         type: formData.type as "track" | "spotlight" | "connector" | "power-supply",
         price: Number(formData.price),
@@ -243,9 +265,19 @@ export function ComponentForm({ onComponentSaved, editingComponent }: ComponentF
         createdAt: editingComponent?.createdAt || new Date(),
         updatedAt: new Date(),
       }
+      if (isEdit && componentId) {
+        component.id = componentId
+      }
 
+      // Save component (POST for create, PUT for update)
       await db.saveComponent(component)
       setSaveStatus("Component saved successfully!")
+
+      // If creating, fetch the new id from backend (if possible)
+      if (!isEdit) {
+        // Optionally, you could fetch the latest component list and get the id of the newly created one
+        // For now, we skip setting id on the frontend for new components
+      }
 
       // Notify that components have been updated
       localStorage.setItem("acb-components-updated", Date.now().toString())
@@ -637,7 +669,7 @@ export function ComponentForm({ onComponentSaved, editingComponent }: ComponentF
             ) : uploadedFiles.length === 0 ? (
               <div className="text-center py-8">
                 <FileIcon className="w-12 h-12 mx-auto text-gray-400 mb-4" />
-                <p className="text-gray-500 mb-2">File browser not available in demo mode</p>
+                <p className="text-gray-500 mb-2">No files uploaded yet</p>
                 <p className="text-xs text-gray-400">Use URL or Upload tabs to add images and 3D models</p>
               </div>
             ) : (

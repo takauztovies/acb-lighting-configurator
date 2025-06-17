@@ -1,7 +1,8 @@
 import { NextApiRequest, NextApiResponse } from 'next'
-import { IncomingForm, type Fields, type Files, type File } from 'formidable'
+import formidable from 'formidable'
 import fs from 'fs'
 import path from 'path'
+import { PrismaClient } from '@prisma/client'
 
 export const config = {
   api: {
@@ -9,73 +10,94 @@ export const config = {
   },
 }
 
-// PrismaClient singleton pattern for Next.js
-// import type { PrismaClient as PrismaClientType } from '@prisma/client'
-let PrismaClient: any, prisma: any
-if (process.env.NODE_ENV === 'production') {
-  PrismaClient = require('@prisma/client').PrismaClient
-  prisma = new PrismaClient()
-} else {
-  if (!(global as any).prisma) {
-    PrismaClient = require('@prisma/client').PrismaClient
-    ;(global as any).prisma = new PrismaClient()
-  }
-  prisma = (global as any).prisma
-}
-
+const prisma = new PrismaClient()
 const uploadDir = path.join(process.cwd(), 'public', 'uploads')
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true })
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  try {
-    if (req.method === 'POST') {
-      const form = new IncomingForm({ uploadDir, keepExtensions: true })
-      form.parse(req, async (err: any, fields: Fields, files: Files) => {
-        if (err) {
-          console.error('[File Upload Error]', err)
-          res.status(500).json({ error: 'File upload error', details: process.env.NODE_ENV === 'development' ? String(err) : undefined })
-          return
-        }
-        let file = files.file as File | File[] | undefined;
-        if (Array.isArray(file)) file = file[0];
-        if (!file) {
-          console.warn('[File Upload] No file uploaded', { fields, files })
-          res.status(400).json({ error: 'No file uploaded' })
-          return
-        }
-        try {
-          const fileData = await prisma.file.create({
-            data: {
-              filename: file.originalFilename || file.newFilename,
-              mimetype: file.mimetype || '',
-              url: `/uploads/${path.basename(file.filepath)}`,
-              size: file.size,
-            },
-          })
-          res.status(201).json(fileData)
-        } catch (prismaErr) {
-          console.error('[Prisma File Create Error]', prismaErr)
-          res.status(500).json({ error: 'Database error', details: process.env.NODE_ENV === 'development' ? String(prismaErr) : undefined })
+  if (req.method === 'GET') {
+    try {
+      const files = await prisma.file.findMany({
+        orderBy: [{ id: 'desc' }],
+      })
+      return res.status(200).json(files)
+    } catch (error) {
+      console.error('Error fetching files:', error)
+      return res.status(500).json({ error: 'Failed to fetch files' })
+    }
+  }
+
+  if (req.method === 'POST') {
+    try {
+      // Create upload directory if it doesn't exist
+      if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true })
+      }
+
+      const form = formidable({
+        uploadDir,
+        keepExtensions: true,
+        maxFileSize: 100 * 1024 * 1024, // 100MB per file
+        maxTotalFileSize: 100 * 1024 * 1024, // 100MB total
+        filename: (_name, _ext, part) => {
+          const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9)
+          const originalName = part.originalFilename || 'file'
+          const ext = path.extname(originalName)
+          const basename = path.basename(originalName, ext)
+          return `${basename}-${uniqueSuffix}${ext}`
         }
       })
-      return // Ensure no further code runs after async parse
-    } else if (req.method === 'GET') {
-      try {
-        const files = await prisma.file.findMany()
-        res.status(200).json(files)
-      } catch (prismaErr) {
-        console.error('[Prisma File FindMany Error]', prismaErr)
-        res.status(500).json({ error: 'Database error', details: process.env.NODE_ENV === 'development' ? String(prismaErr) : undefined })
+
+      // Parse form data
+      const [fields, files] = await new Promise<[formidable.Fields<string>, formidable.Files]>((resolve, reject) => {
+        form.parse(req, (err, fields, files) => {
+          if (err) reject(err)
+          else resolve([fields, files])
+        })
+      })
+
+      // Get the uploaded file
+      const fileField = files.file
+      const file = Array.isArray(fileField) ? fileField[0] : fileField
+
+      if (!file) {
+        return res.status(400).json({ error: 'No file uploaded' })
       }
-      return
-    } else {
-      res.setHeader('Allow', ['POST', 'GET'])
-      res.status(405).end(`Method ${req.method} Not Allowed`)
-      return
+
+      // Get file details
+      const filename = path.basename(file.filepath)
+      const publicUrl = `/uploads/${filename}`
+
+      // Save file record to database
+      const savedFile = await prisma.file.create({
+        data: {
+          filename: filename,
+          url: publicUrl,
+          mimetype: file.mimetype || 'application/octet-stream',
+          size: file.size || 0,
+          filepath: file.filepath,
+        },
+      })
+
+      // Return success response
+      return res.status(201).json({
+        id: savedFile.id,
+        filename: savedFile.filename,
+        url: savedFile.url,
+        mimetype: savedFile.mimetype,
+        size: savedFile.size,
+      })
+    } catch (error) {
+      console.error('[Files API Error]', error)
+      if (error instanceof Error) {
+        if (error.message.includes('maxFileSize')) {
+          return res.status(413).json({ error: 'File too large. Maximum size is 20MB.' })
+        }
+        return res.status(500).json({ error: error.message })
+      }
+      return res.status(500).json({ error: 'Failed to upload file' })
     }
-  } catch (unexpectedErr) {
-    console.error('[Unexpected /api/files Error]', unexpectedErr)
-    res.status(500).json({ error: 'Unexpected server error', details: process.env.NODE_ENV === 'development' ? String(unexpectedErr) : undefined })
-    return
   }
+
+  return res.status(405).json({ error: 'Method not allowed' })
 } 

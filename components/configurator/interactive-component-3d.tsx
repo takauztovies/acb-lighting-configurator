@@ -354,14 +354,6 @@ export function InteractiveComponent3D({
         </mesh>
       )}
 
-      {/* Selection outline */}
-      {isSelected && (
-        <mesh>
-          <boxGeometry args={[1.2, 1.2, 1.2]} />
-          <meshBasicMaterial color="#3b82f6" wireframe transparent opacity={0.8} />
-        </mesh>
-      )}
-
       {/* Component snap points - only show if component has defined snap points */}
       {shouldShowSnapPoints &&
         hasSnapPoints &&

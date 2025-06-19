@@ -341,8 +341,6 @@ function ModelWithSnapPoints({ component, snapPoints, isPlacementMode, onCompone
         object.position.set(0, 0, 0)
       }
       object.updateMatrixWorld(true);
-      // Debug: log model structure
-      console.log('[DEBUG] Loaded OBJ model structure:', object);
       // Log all meshes and their world positions/bounding boxes
       object.traverse((child) => {
         if ((child as THREE.Mesh).isMesh) {
@@ -362,16 +360,6 @@ function ModelWithSnapPoints({ component, snapPoints, isPlacementMode, onCompone
             }
           }
           mesh.updateMatrixWorld(true);
-          // Log world position and bounding box
-          const meshWorldPos = new THREE.Vector3();
-          mesh.getWorldPosition(meshWorldPos);
-          mesh.geometry.computeBoundingBox();
-          const meshBBox = mesh.geometry.boundingBox;
-          console.log('[DEBUG] Mesh:', mesh.name, {
-            worldPosition: meshWorldPos,
-            boundingBox: meshBBox,
-            geometry: mesh.geometry,
-          });
         }
       });
       setLoadedModel(object)
@@ -433,28 +421,16 @@ function ModelWithSnapPoints({ component, snapPoints, isPlacementMode, onCompone
     }
     // No fallback to placeholder mesh
 
-    console.log('[DEBUG] handlePointerDown fired. intersects:', intersects);
     if (intersects.length > 0) {
       // Convert world position to local position
       const intersect = intersects[0];
       const localPos = meshRef.current.worldToLocal(intersect.point.clone());
-      console.log('[DEBUG] Intersection found. localPos:', localPos, 'face:', intersect.face, 'object:', intersect.object);
-      // Add a debug sphere at the intersection point
-      const debugSphere = new THREE.Mesh(
-        new THREE.SphereGeometry(0.03, 16, 16),
-        new THREE.MeshBasicMaterial({ color: 0xff0000 })
-      );
-      debugSphere.position.copy(intersect.point);
-      debugSphere.name = 'DebugIntersectionSphere';
-      meshRef.current.add(debugSphere);
       onComponentClick([localPos.x, localPos.y, localPos.z], intersect.face ? {
         face: intersect.face,
         object: intersect.object,
         faceIndex: intersect.faceIndex,
         geometry: (intersect.object as THREE.Mesh).geometry
       } : undefined);
-    } else {
-      console.log('[DEBUG] No intersection found on click.');
     }
   };
 
@@ -463,14 +439,6 @@ function ModelWithSnapPoints({ component, snapPoints, isPlacementMode, onCompone
       {loadedModel ? (
         <>
           <primitive object={loadedModel.clone()} />
-          {/* Visualize bounding box */}
-          {modelBoundingBox && (
-            <mesh>
-              <boxGeometry args={modelBoundingBox.box.getSize(new THREE.Vector3()).toArray()} />
-              <meshBasicMaterial color="#00ffff" wireframe opacity={0.3} transparent />
-              <primitive object={new THREE.Object3D()} position={modelBoundingBox.box.getCenter(new THREE.Vector3())} />
-            </mesh>
-          )}
         </>
       ) : (
         <mesh>
@@ -505,23 +473,10 @@ function ModelWithSnapPoints({ component, snapPoints, isPlacementMode, onCompone
 
 export function VisualSnapPointEditor({ component, onSnapPointsUpdated, onClose }: VisualSnapPointEditorProps) {
   // Debug the incoming component
-  useEffect(() => {
-    debugLog("Component received:", component)
-    debugLog("Component snapPoints:", component.snapPoints)
-
-    // Check for invalid snap points
-    if (Array.isArray(component.snapPoints)) {
-      component.snapPoints.forEach((sp, index) => {
-        if (!isValidSnapPoint(sp)) {
-          debugLog(`Invalid snap point at index ${index}:`, sp)
-        }
-      })
-    }
-  }, [component]) // This effect only runs when component changes
+  useEffect(() => {}, [component]) // This effect only runs when component changes
 
   // Memoize safeComponent to prevent it from being recreated on every render
   const safeComponent = useMemo(() => {
-    debugLog("Creating safeComponent")
     return {
       ...component,
       snapPoints: Array.isArray(component.snapPoints) ? component.snapPoints.filter((sp) => isValidSnapPoint(sp)) : [],
@@ -531,14 +486,12 @@ export function VisualSnapPointEditor({ component, onSnapPointsUpdated, onClose 
   // Initialize snapPoints state directly from safeComponent.snapPoints
   const [snapPoints, setSnapPoints] = useState<SnapPoint[]>(() => {
     const validSnapPoints = safeComponent.snapPoints.filter(isValidSnapPoint)
-    debugLog("Initial snapPoints state:", validSnapPoints)
     return validSnapPoints
   })
 
   // Update snapPoints when component changes
   useEffect(() => {
     const validSnapPoints = safeComponent.snapPoints.filter(isValidSnapPoint)
-    debugLog("Updating snapPoints from changed component:", validSnapPoints)
     setSnapPoints(validSnapPoints)
   }, [safeComponent]) // Only run when safeComponent changes (which is only when component changes)
 
@@ -567,9 +520,7 @@ export function VisualSnapPointEditor({ component, onSnapPointsUpdated, onClose 
   }
 
   const handleSnapPointPlace = (position: [number, number, number], faceInfo?: any) => {
-    console.log('[DEBUG] handleSnapPointPlace called. position:', position, 'faceInfo:', faceInfo);
     const newId = `snap-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-    debugLog("Placing new snap point with ID:", newId)
 
     // Helper to determine if click is close to a face center
     const isCloseToFaceCenter = (pos: [number, number, number], threshold = 0.1) => {
@@ -636,13 +587,11 @@ export function VisualSnapPointEditor({ component, onSnapPointsUpdated, onClose 
       updatedAt: new Date(),
       faceData,
     };
-    console.log('[DEBUG] Creating new snap point:', newSnapPoint);
 
     // Filter out any invalid snap points before adding the new one
     const validSnapPoints = snapPoints.filter(isValidSnapPoint)
     const updatedSnapPoints = [...validSnapPoints, newSnapPoint]
 
-    debugLog("Setting snapPoints with new snap point:", updatedSnapPoints)
     setSnapPoints(updatedSnapPoints)
     setSelectedSnapPointId(newId)
     setIsPlacementMode(false)
@@ -665,8 +614,6 @@ export function VisualSnapPointEditor({ component, onSnapPointsUpdated, onClose 
   }
 
   const handleSnapPointMove = (snapPointId: string, position: [number, number, number]) => {
-    debugLog("Moving snap point:", { snapPointId, position })
-
     // Safely update snap points array
     const updatedSnapPoints = snapPoints
       .filter(isValidSnapPoint) // Filter out invalid snap points
@@ -674,7 +621,6 @@ export function VisualSnapPointEditor({ component, onSnapPointsUpdated, onClose 
         return sp.id === snapPointId ? { ...sp, position, updatedAt: new Date() } : sp
       })
 
-    debugLog("Setting snapPoints after move:", updatedSnapPoints)
     setSnapPoints(updatedSnapPoints)
 
     // Update form data if this is the selected snap point
@@ -684,24 +630,11 @@ export function VisualSnapPointEditor({ component, onSnapPointsUpdated, onClose 
   }
 
   const handleSnapPointClick = (snapPointId: string) => {
-    debugLog("=== SNAP POINT CLICK DEBUG ===")
-    debugLog("Clicking snap point ID:", snapPointId)
-    debugLog(
-      "Available snap points:",
-      snapPoints.map((sp) => ({ id: sp?.id, name: sp?.name })),
-    )
-
     const snapPoint = snapPoints.find((sp) => isValidSnapPoint(sp) && sp.id === snapPointId)
-
     if (!snapPoint) {
-      console.error("Could not find snap point with ID:", snapPointId)
       setSaveStatus("Error: Could not find the selected snap point")
       return
     }
-
-    debugLog("Found snap point:", snapPoint)
-
-    // Set all the state properly
     setSelectedSnapPointId(snapPointId)
     setEditingSnapPoint(snapPoint)
     setFormData({
@@ -712,60 +645,30 @@ export function VisualSnapPointEditor({ component, onSnapPointsUpdated, onClose 
       type: snapPoint.type,
     })
     setIsPlacementMode(false)
-
-    debugLog("State set - selectedSnapPointId:", snapPointId)
-    debugLog("State set - editingSnapPoint:", snapPoint)
-    debugLog("State set - formData:", {
-      id: snapPoint.id,
-      name: snapPoint.name,
-      description: snapPoint.description,
-      position: snapPoint.position,
-      type: snapPoint.type,
-    })
   }
 
   // COMPLETELY REWRITTEN SAVE FUNCTION WITH EXTENSIVE DEBUGGING
   const handleSaveSnapPoint = () => {
     try {
-      debugLog("=== SAVE SNAP POINT DEBUG ===")
-      debugLog("Starting handleSaveSnapPoint")
-
       // Step 1: Defensive state cleaning and validation
       const cleanSnapPoints = snapPoints.filter(isValidSnapPoint)
       if (cleanSnapPoints.length !== snapPoints.length) {
-        debugLog("CORRUPTION DETECTED: snapPoints array contained invalid items. Auto-correcting state.")
         setSnapPoints(cleanSnapPoints) // Self-heal the state
       }
-
-      debugLog("selectedSnapPointId:", selectedSnapPointId)
-      debugLog("formData:", formData)
-      debugLog("Clean snapPoints array:", cleanSnapPoints)
-
       if (!selectedSnapPointId) {
-        debugLog("No snap point selected")
         setSaveStatus("Error: No snap point selected")
         return
       }
-
       if (!formData.name || !formData.type) {
-        debugLog("Form data is incomplete")
         setSaveStatus("Error: Name and Type are required")
         return
       }
-
-      debugLog("Validation passed, proceeding with save")
-
       // Step 2: Operate only on the cleaned data
       const snapPointToUpdate = cleanSnapPoints.find((sp) => sp.id === selectedSnapPointId)
-
       if (!snapPointToUpdate) {
-        debugLog("Could not find the selected snap point in the clean snap points array")
         setSaveStatus("Error: Could not find the selected snap point. It may have been deleted.")
         return
       }
-
-      debugLog("Found snap point to update:", snapPointToUpdate)
-
       // Create the updated snap point
       const updatedSnapPoint = {
         ...snapPointToUpdate,
@@ -775,56 +678,31 @@ export function VisualSnapPointEditor({ component, onSnapPointsUpdated, onClose 
         type: formData.type,
         updatedAt: new Date(),
       }
-
-      debugLog("Updated snap point:", updatedSnapPoint)
-
       // Create a new array with the updated snap point
       const newSnapPoints = cleanSnapPoints.map((sp) => (sp.id === selectedSnapPointId ? updatedSnapPoint : sp))
-
-      debugLog("New snap points array:", newSnapPoints)
-
       // Create updated component
       const updatedComponent = {
         ...safeComponent,
         snapPoints: newSnapPoints,
         updatedAt: new Date(),
       }
-
-      debugLog("Updated component:", updatedComponent)
-
       // Save to database
-      debugLog("Saving to database...")
       if (typeof db.saveComponent === "function") {
         db.saveComponent(updatedComponent)
-        debugLog("Database save called")
-      } else {
-        debugLog("db.saveComponent is not a function")
       }
-
       // Update state
-      debugLog("Updating state...")
       setSnapPoints(newSnapPoints)
       setSelectedSnapPointId(null)
       setEditingSnapPoint(null)
       setFormData({})
       setSaveStatus("Snap point saved successfully!")
-      debugLog("State updated")
-
       // Notify parent
-      debugLog("Notifying parent...")
       if (typeof onSnapPointsUpdated === "function") {
         onSnapPointsUpdated(updatedComponent)
-        debugLog("Parent notified")
-      } else {
-        debugLog("onSnapPointsUpdated is not a function")
       }
-
       // Clear status after delay
       setTimeout(() => setSaveStatus(""), 3000)
-      debugLog("Save completed successfully")
     } catch (error) {
-      console.error("Error in handleSaveSnapPoint:", error)
-      debugLog("ERROR in handleSaveSnapPoint:", error)
       setSaveStatus(`Error saving snap point: ${error}`)
     }
   }
@@ -833,12 +711,8 @@ export function VisualSnapPointEditor({ component, onSnapPointsUpdated, onClose 
     if (!selectedSnapPointId || !confirm("Are you sure you want to delete this snap point?")) return
 
     try {
-      debugLog("Deleting snap point:", selectedSnapPointId)
-
       // Filter with safety checks
       const updatedSnapPoints = snapPoints.filter((sp) => isValidSnapPoint(sp) && sp.id !== selectedSnapPointId)
-
-      debugLog("Filtered snap points after deletion:", updatedSnapPoints)
 
       const updatedComponent: ComponentData = {
         ...safeComponent,
@@ -850,13 +724,11 @@ export function VisualSnapPointEditor({ component, onSnapPointsUpdated, onClose 
       try {
         if (typeof db.saveComponent === "function") {
           await db.saveComponent(updatedComponent)
-          debugLog("Database save successful")
         } else {
-          debugLog("Database save mocked in demo mode")
+          console.warn("Database save mocked in demo mode")
         }
       } catch (dbError) {
         console.warn("Database save failed, continuing in demo mode", dbError)
-        debugLog("Database save failed:", dbError)
       }
 
       setSnapPoints(updatedSnapPoints)
@@ -869,7 +741,6 @@ export function VisualSnapPointEditor({ component, onSnapPointsUpdated, onClose 
       setTimeout(() => setSaveStatus(""), 3000)
     } catch (error) {
       console.error("Error deleting snap point:", error)
-      debugLog("Error deleting snap point:", error)
       setSaveStatus(`Error deleting snap point: ${error}`)
     }
   }

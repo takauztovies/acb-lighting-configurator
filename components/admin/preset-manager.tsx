@@ -47,7 +47,16 @@ const presetCategories = [
   "Custom",
 ]
 
-export function PresetManager({ components, onSave, onDelete }: PresetManagerProps) {
+/**
+ * PresetManager component for managing presets.
+ * @param onDelete - Function to call when a preset is deleted. Should be provided by the parent. Defaults to a no-op.
+ */
+export function PresetManager({
+  components,
+  onSave,
+  onDelete = () => {}, // Safe default no-op
+  ...props
+}: PresetManagerProps & { onDelete?: (id: string) => void }) {
   const { t } = useTranslation()
   const [presets, setPresets] = useState<PresetData[]>([])
   const [isCreating, setIsCreating] = useState(false)

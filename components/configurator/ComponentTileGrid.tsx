@@ -20,6 +20,7 @@ interface ComponentTileGridProps {
   buttonRender?: (component: ComponentTile) => React.ReactNode
   tileClassName?: string
   showAddButton?: boolean
+  isFirstComponent?: boolean
 }
 
 export const ComponentTileGrid: React.FC<ComponentTileGridProps> = ({
@@ -29,10 +30,14 @@ export const ComponentTileGrid: React.FC<ComponentTileGridProps> = ({
   buttonRender,
   tileClassName = "",
   showAddButton = true,
+  isFirstComponent = false,
 }) => {
+  const filteredComponents = isFirstComponent
+    ? components.filter((c) => c.type === "connector")
+    : components
   return (
     <div className="grid grid-cols-2 gap-4">
-      {components.map((component) => (
+      {filteredComponents.map((component) => (
         <Card
           key={component.id}
           className={`relative overflow-hidden min-w-[180px] max-w-[220px] h-56 flex flex-col ${tileClassName}`}

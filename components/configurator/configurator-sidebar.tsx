@@ -274,6 +274,7 @@ export function ConfiguratorSidebar() {
                     if (found) addComponent(found as ExtendedLightComponent)
                   }}
                   showAddButton={false}
+                  isFirstComponent={state.currentConfig.components.length === 0}
                 />
               </CardContent>
             </Card>

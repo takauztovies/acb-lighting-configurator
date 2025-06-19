@@ -97,7 +97,7 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
     if (!confirm("Are you sure you want to delete this component?")) return
 
     try {
-      await db.deleteComponent(componentId)
+      await db.deleteComponents([componentId])
       setComponents(components.filter((c) => c.id !== componentId))
       notifyComponentsUpdated()
       console.log("Component deleted:", componentId)

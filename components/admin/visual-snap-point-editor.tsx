@@ -307,65 +307,153 @@ function ModelWithSnapPoints({ component, snapPoints, isPlacementMode, onCompone
 
   // Load model URL (db:// or direct)
   useEffect(() => {
-    if (!component.model3d) return setModelUrl(null)
+    if (!component.model3d) {
+      console.log('No model3d URL provided for component:', component);
+      return setModelUrl(null);
+    }
+    console.log('Processing model3d URL:', component.model3d);
+    
     if (component.model3d.startsWith("db://")) {
       const fileId = component.model3d.replace("db://", "")
+      console.log('Loading model from database, fileId:', fileId);
       // Now works with backend RestAPIAdapter
       db.getFile(fileId).then((file: { data: string }) => {
-        if (file && file.data && file.data.startsWith("data:")) {
-          fetch(file.data).then(res => res.blob()).then(blob => {
-            setModelUrl(URL.createObjectURL(blob))
-          })
+        console.log('File data received:', file);
+        if (file && file.data) {
+          if (file.data.startsWith("data:")) {
+            console.log('Converting data URL to blob URL');
+            fetch(file.data)
+              .then(res => res.blob())
+              .then(blob => {
+                const url = URL.createObjectURL(blob);
+                console.log('Created blob URL:', url);
+                setModelUrl(url);
+              })
+              .catch(error => {
+                console.error('Error converting data URL:', error);
+              });
+          } else {
+            console.log('Using file data directly');
+            setModelUrl(file.data);
+          }
+        } else {
+          console.error('Invalid file data received:', file);
         }
-      })
+      }).catch(error => {
+        console.error('Error fetching file from database:', error);
+      });
     } else {
-      setModelUrl(component.model3d)
+      // For direct URLs, ensure they start with / or http
+      let url = component.model3d;
+      if (!url.startsWith('/') && !url.startsWith('http')) {
+        url = '/' + url;
+      }
+      console.log('Using direct model URL:', url);
+      setModelUrl(url);
     }
   }, [component.model3d])
 
   // Load OBJ model
   useEffect(() => {
-    if (!modelUrl) return setLoadedModel(null)
-    const loader = new OBJLoader()
-    loader.load(modelUrl, (object: THREE.Group) => {
-      object.updateMatrixWorld(true);
-      // Center and scale model
-      const box = new THREE.Box3().setFromObject(object)
-      const size = box.getSize(new THREE.Vector3())
-      const maxDim = Math.max(size.x, size.y, size.z)
-      const center = box.getCenter(new THREE.Vector3())
-      if (maxDim > 0) {
-        const scale = 1 / maxDim
-        object.scale.setScalar(scale)
-        object.position.sub(center.multiplyScalar(scale))
-        object.position.set(0, 0, 0)
-      }
-      object.updateMatrixWorld(true);
-      // Log all meshes and their world positions/bounding boxes
-      object.traverse((child) => {
-        if ((child as THREE.Mesh).isMesh) {
-          const mesh = child as THREE.Mesh;
-          mesh.visible = true;
-          mesh.castShadow = true;
-          mesh.receiveShadow = true;
-          if (mesh.material) {
-            if (Array.isArray(mesh.material)) {
-              mesh.material.forEach((mat) => {
-                mat.side = THREE.DoubleSide;
-                mat.visible = true;
+    if (!modelUrl) {
+      console.log('Model URL is null or empty', { component });
+      return setLoadedModel(null);
+    }
+    console.log('Attempting to load model from URL:', modelUrl);
+    
+    // Create a new loader for each attempt
+    const loader = new OBJLoader();
+
+    try {
+      loader.load(
+        modelUrl,
+        (object: THREE.Group) => {
+          console.log('Model loaded successfully', { object });
+          if (!object.children || object.children.length === 0) {
+            console.warn('Model loaded but has no children/meshes');
+          }
+          
+          object.updateMatrixWorld(true);
+          // Center and scale model
+          const box = new THREE.Box3().setFromObject(object);
+          const size = box.getSize(new THREE.Vector3());
+          const maxDim = Math.max(size.x, size.y, size.z);
+          const center = box.getCenter(new THREE.Vector3());
+          console.log('Model dimensions:', { size, maxDim, center });
+          
+          if (maxDim > 0) {
+            const scale = 1 / maxDim;
+            object.scale.setScalar(scale);
+            object.position.sub(center.multiplyScalar(scale));
+            object.position.set(0, 0, 0);
+          }
+          
+          object.updateMatrixWorld(true);
+          
+          // Log all meshes and their world positions/bounding boxes
+          let meshCount = 0;
+          object.traverse((child) => {
+            if ((child as THREE.Mesh).isMesh) {
+              meshCount++;
+              const mesh = child as THREE.Mesh;
+              console.log('Found mesh:', {
+                name: mesh.name,
+                position: mesh.position,
+                geometry: mesh.geometry ? 'present' : 'missing',
+                material: mesh.material ? 'present' : 'missing'
               });
+              
+              mesh.visible = true;
+              mesh.castShadow = true;
+              mesh.receiveShadow = true;
+              
+              if (mesh.material) {
+                if (Array.isArray(mesh.material)) {
+                  mesh.material.forEach((mat) => {
+                    mat.side = THREE.DoubleSide;
+                    mat.visible = true;
+                  });
+                } else {
+                  mesh.material.side = THREE.DoubleSide;
+                  mesh.material.visible = true;
+                }
+              }
+              mesh.updateMatrixWorld(true);
+            }
+          });
+          
+          console.log(`Found ${meshCount} meshes in model`);
+          setLoadedModel(object);
+          setModelBoundingBox({ box: box.clone(), center: center.clone() });
+        },
+        (xhr) => {
+          console.log('Loading progress:', (xhr.loaded / xhr.total * 100) + '% loaded');
+        },
+        (error: unknown) => {
+          console.error('Error loading model:', error);
+          // Try to provide more specific error information
+          if (
+            typeof error === 'object' && 
+            error !== null && 
+            'target' in error && 
+            typeof error.target === 'object' &&
+            error.target !== null &&
+            'status' in error.target &&
+            typeof error.target.status === 'number'
+          ) {
+            const status = error.target.status;
+            if (status === 404) {
+              console.error('Model file not found (404):', modelUrl);
             } else {
-              mesh.material.side = THREE.DoubleSide;
-              mesh.material.visible = true;
+              console.error(`HTTP error ${status} loading model:`, modelUrl);
             }
           }
-          mesh.updateMatrixWorld(true);
         }
-      });
-      setLoadedModel(object)
-      setModelBoundingBox({ box: box.clone(), center: center.clone() })
-    })
-  }, [modelUrl])
+      );
+    } catch (error) {
+      console.error('Exception during model loading:', error);
+    }
+  }, [modelUrl, component]);
 
   // Utility to collect all meshes from a group
   function getAllMeshes(group: THREE.Object3D): THREE.Mesh[] {
@@ -505,19 +593,6 @@ export function VisualSnapPointEditor({ component, onSnapPointsUpdated, onClose 
   const selectedSnapPoint = selectedSnapPointId
     ? snapPoints.find((sp) => isValidSnapPoint(sp) && sp.id === selectedSnapPointId)
     : null
-
-  const handleStartPlacement = () => {
-    setIsPlacementMode(true)
-    setIsEditMode(false)
-    setSelectedSnapPointId(null)
-    setEditingSnapPoint(null)
-    setSaveStatus("Click on the component to place a snap point")
-  }
-
-  const handleStopPlacement = () => {
-    setIsPlacementMode(false)
-    setSaveStatus("")
-  }
 
   const handleSnapPointPlace = (position: [number, number, number], faceInfo?: any) => {
     const newId = `snap-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
@@ -770,28 +845,14 @@ export function VisualSnapPointEditor({ component, onSnapPointsUpdated, onClose 
         {/* 3D Editor Panel */}
         <div className="flex-1 relative">
           <div className="absolute top-4 left-4 z-10 space-y-2">
-            {!isPlacementMode ? (
-              <Button
-                onClick={handleStartPlacement}
-                variant="default"
-                size="sm"
-                className="flex items-center gap-2 bg-green-600 hover:bg-green-700"
-              >
-                <Target className="w-4 h-4" />
-                Add Snap Point
-              </Button>
-            ) : (
-              <div className="space-y-2">
-                <Button onClick={handleStopPlacement} variant="outline" size="sm" className="flex items-center gap-2">
-                  <X className="w-4 h-4" />
-                  Cancel Placement
-                </Button>
-                <div className="bg-green-600 text-white px-3 py-2 rounded text-sm">
-                  Click on the component to place snap point
-                </div>
-              </div>
-            )}
-
+            <Button
+              onClick={() => setIsPlacementMode(!isPlacementMode)}
+              variant={isPlacementMode ? "default" : "outline"}
+              size="sm"
+            >
+              <Target className="w-4 h-4 mr-2" />
+              {isPlacementMode ? "Cancel Add" : "Add Snap Point"}
+            </Button>
             <Button
               onClick={() => setIsEditMode(!isEditMode)}
               variant={isEditMode ? "default" : "outline"}
@@ -845,18 +906,7 @@ export function VisualSnapPointEditor({ component, onSnapPointsUpdated, onClose 
             <Separator />
 
             {/* Instructions */}
-            <div className="bg-blue-50 p-3 rounded-lg">
-              <h4 className="font-medium text-blue-900 mb-2">How to use:</h4>
-              <ol className="text-sm text-blue-800 space-y-1 list-decimal list-inside">
-                <li>Click "Add Snap Point" to enter placement mode</li>
-                <li>
-                  Click on any side of the green component - the snap point will automatically center on that face
-                </li>
-                <li>Select a snap point to edit its properties or fine-tune position</li>
-                <li>Use "Edit Position" mode to drag snap points around</li>
-                <li>Save your changes when done</li>
-              </ol>
-            </div>
+            {/* Instructions removed: Add Snap Point no longer available */}
 
             {/* Snap Points List */}
             <div className="space-y-2">
@@ -889,7 +939,7 @@ export function VisualSnapPointEditor({ component, onSnapPointsUpdated, onClose 
                   ))}
                 </div>
               ) : (
-                <p className="text-gray-500 text-sm">No snap points yet. Click "Add Snap Point" to start.</p>
+                <p className="text-gray-500 text-sm">No snap points yet.</p>
               )}
             </div>
 

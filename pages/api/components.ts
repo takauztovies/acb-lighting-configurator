@@ -76,7 +76,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             price: typedComponent.price,
             image: typedComponent.imageUrl || '/placeholder.svg',
             cardImage: typedComponent.cardImageUrl || '/placeholder.svg',
-            model3d: typedComponent.model3dUrl || null,
+            model3d: typedComponent.model3dUrl || '',
             specifications: typedComponent.metadata || {},
             snapPoints: typedComponent.snapPoints.map(sp => ({
               id: sp.id,
@@ -189,30 +189,30 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             } else {
               input = req.body as ComponentInput;
             }
-            const component = await prisma.component.create({
-              data: {
-                name: input.name,
-                type: input.type,
-                description: input.description,
-                model3dUrl: input.model3d,
-                imageUrl: input.image,
-                cardImageUrl: input.cardImage,
-                metadata: input.specifications || {},
-                price: Number(input.price) || 0,
-                snapPoints: {
-                  create: input.snapPoints?.map(sp => ({
-                    name: sp.name,
-                    type: sp.type,
-                    position: JSON.stringify(sp.position),
-                    rotation: sp.rotation ? JSON.stringify(sp.rotation) : null
-                  })) || []
-                }
-              } as Prisma.ComponentCreateInput,
-              include: {
-                snapPoints: true
+          const component = await prisma.component.create({
+            data: {
+              name: input.name,
+              type: input.type,
+              description: input.description,
+              model3dUrl: input.model3d,
+              imageUrl: input.image,
+              cardImageUrl: input.cardImage,
+              metadata: input.specifications || {},
+              price: Number(input.price) || 0,
+              snapPoints: {
+                create: input.snapPoints?.map(sp => ({
+                  name: sp.name,
+                  type: sp.type,
+                  position: JSON.stringify(sp.position),
+                  rotation: sp.rotation ? JSON.stringify(sp.rotation) : null
+                })) || []
               }
-            })
-            return res.status(201).json(component)
+            } as Prisma.ComponentCreateInput,
+            include: {
+              snapPoints: true
+            }
+          })
+          return res.status(201).json(component)
           }
         }
       }

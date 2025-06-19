@@ -5,7 +5,6 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import {
   CheckCircle,
   Circle,
@@ -471,78 +470,88 @@ export function EnhancedGuidedSetup({ isOpen, onClose, onComplete }: EnhancedGui
   const progress = ((currentStep + 1) / steps.length) * 100
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
+    isOpen ? (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+        <div className="bg-white rounded-lg shadow-xl max-w-5xl w-full max-h-[90vh] overflow-y-auto p-8 relative">
+          <button className="absolute top-4 right-4 text-gray-500 hover:text-gray-700" onClick={onClose} aria-label="Close">&times;</button>
+          <div className="flex items-center gap-2 mb-6">
             <Lightbulb className="h-5 w-5" />
-            Enhanced Lighting Setup
-          </DialogTitle>
-        </DialogHeader>
-
-        <div className="space-y-6">
-          {/* Progress */}
-          <div className="space-y-2">
-            <div className="flex justify-between text-sm">
-              <span>
-                Step {currentStep + 1} of {steps.length}
-              </span>
-              <span>{Math.round(progress)}% Complete</span>
-            </div>
-            <Progress value={progress} className="h-2" />
+            <span className="text-lg font-semibold">Enhanced Lighting Setup</span>
           </div>
-
-          {/* Step Overview */}
-          <div className="grid grid-cols-4 gap-2">
-            {steps.map((step, index) => (
-              <div
-                key={step.id}
-                className={`p-3 rounded text-center text-xs ${
-                  index === currentStep
-                    ? "bg-blue-100 border-2 border-blue-500"
-                    : index < currentStep
-                      ? "bg-green-100 border border-green-500"
-                      : "bg-gray-100 border border-gray-300"
-                }`}
-              >
-                <div className="flex items-center justify-center mb-2">
-                  {index < currentStep ? (
-                    <CheckCircle className="h-4 w-4 text-green-600" />
-                  ) : (
-                    <Circle className="h-4 w-4 text-gray-400" />
-                  )}
-                </div>
-                <div className="font-medium">{step.title}</div>
-                <div className="text-gray-600 mt-1">{step.description}</div>
+          <div className="relative flex flex-col h-full justify-center space-y-6">
+            {/* Progress */}
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span>
+                  Step {currentStep + 1} of {steps.length}
+                </span>
+                <span>{Math.round(progress)}% Complete</span>
               </div>
-            ))}
-          </div>
-
-          {/* Step Content */}
-          <Card>
-            <CardContent className="p-6">{renderStepContent()}</CardContent>
-          </Card>
-
-          {/* Navigation */}
-          <div className="flex justify-between">
-            <Button variant="outline" onClick={handlePrevious} disabled={currentStep === 0}>
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Previous
-            </Button>
-
-            <Button onClick={handleNext} disabled={!canProceed()}>
-              {currentStep < steps.length - 1 ? (
-                <>
-                  Next
-                  <ArrowRight className="h-4 w-4 ml-2" />
-                </>
-              ) : (
-                "Start Building"
-              )}
-            </Button>
+              <progress value={progress} max={100} className="w-full h-2 rounded bg-gray-200" />
+            </div>
+            {/* Step Overview */}
+            <div className="grid grid-cols-4 gap-2">
+              {steps.map((step, index) => (
+                <div
+                  key={step.id}
+                  className={`p-3 rounded text-center text-xs ${
+                    index === currentStep
+                      ? "bg-blue-100 border-2 border-blue-500"
+                      : index < currentStep
+                        ? "bg-green-100 border border-green-500"
+                        : "bg-gray-100 border border-gray-300"
+                  }`}
+                >
+                  <div className="flex items-center justify-center mb-2">
+                    {index < currentStep ? (
+                      <CheckCircle className="h-4 w-4 text-green-600" />
+                    ) : (
+                      <Circle className="h-4 w-4 text-gray-400" />
+                    )}
+                  </div>
+                  <div className="font-medium">{step.title}</div>
+                  <div className="text-gray-600 mt-1">{step.description}</div>
+                </div>
+              ))}
+            </div>
+            {/* Step Content */}
+            <Card>
+              <CardContent className="p-6">{renderStepContent()}</CardContent>
+            </Card>
+            {/* Navigation - fixed in gray overlay, vertically centered */}
+            {isOpen && (
+              <>
+                <div
+                  className="fixed left-8 top-1/2 z-50"
+                  style={{ transform: 'translateY(-50%)' }}
+                  aria-label="Previous Step"
+                >
+                  <Button variant="outline" onClick={handlePrevious} disabled={currentStep === 0}>
+                    <ArrowLeft className="h-4 w-4 mr-2" />
+                    Previous
+                  </Button>
+                </div>
+                <div
+                  className="fixed right-8 top-1/2 z-50"
+                  style={{ transform: 'translateY(-50%)' }}
+                  aria-label="Next Step"
+                >
+                  <Button onClick={handleNext} disabled={!canProceed()}>
+                    {currentStep < steps.length - 1 ? (
+                      <>
+                        Next
+                        <ArrowRight className="h-4 w-4 ml-2" />
+                      </>
+                    ) : (
+                      "Start Building"
+                    )}
+                  </Button>
+                </div>
+              </>
+            )}
           </div>
         </div>
-      </DialogContent>
-    </Dialog>
+      </div>
+    ) : null
   )
 }

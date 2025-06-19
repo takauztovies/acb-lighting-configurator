@@ -5,11 +5,13 @@ import { createContext, useContext, useReducer, useEffect, type ReactNode } from
 import { db, type ComponentData } from "@/lib/database"
 
 // Define types
+export type ComponentType = "track" | "spotlight" | "connector" | "power-supply" | "mounting" | "accessory" | "floor" | "ceiling" | "shade" | "diffuser" | "bulb" | "driver" | "sensor" | "dimmer" | "lamp" | "uplight" | "downlight" | "panel" | "pendant" | "strip" | "wall" | "table"
+
 export interface Component {
   id: string
   name: string
-  type: string
-  model?: string
+  type: ComponentType
+  model3d?: string
   image?: string
   position: [number, number, number]
   rotation: [number, number, number]
@@ -54,17 +56,34 @@ export interface SceneImageSettings {
   rightWall: string | null
 }
 
+export interface LocalComponentData {
+  id: string
+  name: string
+  type: ComponentType
+  price: number
+  model3d?: string
+  image?: string
+  specifications?: Record<string, any>
+  bundleRequired?: string[]
+  position?: [number, number, number]
+  rotation?: [number, number, number]
+  connections?: string[]
+  connectionPoints?: ConnectionPoint[]
+  snapPoints?: SnapPoint[]
+}
+
 export interface LightComponent {
   id: string
   name: string
-  type: "track" | "spotlight" | "connector" | "power-supply"
+  type: ComponentType
   price: number
   model3d?: string
-  image: string
+  image?: string
   specifications: Record<string, any>
   bundleRequired?: string[]
   position: [number, number, number]
   rotation: [number, number, number]
+  scale: [number, number, number]
   connections: string[]
   connectionPoints: ConnectionPoint[]
   snapPoints?: SnapPoint[]
@@ -655,7 +674,6 @@ function configuratorReducer(state: ConfiguratorState, action: Action): Configur
         rotation: [0, 0, 0],
         scale: [1, 1, 1],
         connections: [],
-        snapPoints: action.component.snapPoints || [],
       }
 
       return {
@@ -663,10 +681,7 @@ function configuratorReducer(state: ConfiguratorState, action: Action): Configur
         currentConfig: {
           ...state.currentConfig,
           components: [...state.currentConfig.components, newComponent],
-          totalPrice: state.currentConfig.totalPrice + newComponent.price,
         },
-        selectedComponentId: newComponent.id,
-        selectedComponentIds: [newComponent.id],
         selectedSnapPoint: null,
         placementMode: false,
         pendingComponent: null,
@@ -737,14 +752,15 @@ const convertToLightComponent = (component: ComponentData): LightComponent => {
     name: component.name,
     type: component.type,
     price: component.price,
-    model3d: component.model3d,
-    image: component.image,
-    specifications: component.specifications,
-    bundleRequired: component.bundleRequired,
-    position: component.position,
-    rotation: component.rotation,
-    connections: component.connections,
-    connectionPoints: component.connectionPoints,
+    model3d: component.model3d || '',
+    image: component.image || '',
+    specifications: component.specifications || {},
+    bundleRequired: [],
+    position: [0, 0, 0],
+    rotation: [0, 0, 0],
+    scale: [1, 1, 1],
+    connections: [],
+    connectionPoints: [],
     snapPoints: component.snapPoints,
   }
 }

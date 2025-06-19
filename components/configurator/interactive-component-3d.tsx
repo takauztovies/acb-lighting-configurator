@@ -70,6 +70,7 @@ export function InteractiveComponent3D({
   // Resolve model URL if it's a database reference
   const resolveModelUrl = useCallback(async () => {
     if (!component.model3d) {
+      console.log('No model3d URL provided:', { componentId: component.id });
       setModelUrl(null)
       setModelLoadError(null)
       return
@@ -78,62 +79,57 @@ export function InteractiveComponent3D({
     try {
       if (component.model3d === "undefined" || component.model3d === "null" || !component.model3d.trim()) {
         setModelUrl(null)
-        setModelLoadError("Invalid model reference")
+        setModelLoadError("Invalid model reference (empty or undefined)")
         return
       }
 
       if (component.model3d.startsWith("db://")) {
         const fileId = component.model3d.replace("db://", "")
-
         if (!fileId) {
           setModelUrl(null)
-          setModelLoadError("Empty file reference")
+          setModelLoadError("Empty file reference in db:// URI")
           return
         }
-
         const file = await db.getFile(fileId)
-
-        if (file && file.data) {
-          if (!file.data || file.data === "undefined" || file.data === "null") {
-            setModelUrl(null)
-            setModelLoadError("Invalid file data")
+        if (file) {
+          if (file.url && typeof file.url === "string" && file.url.trim() && file.url !== "undefined" && file.url !== "null") {
+            setModelUrl(file.url)
+            setModelLoadError(null)
             return
           }
-
-          if (file.data.startsWith("data:")) {
-            try {
-              const response = await fetch(file.data)
-              const blob = await response.blob()
-              const blobUrl = URL.createObjectURL(blob)
-              setModelUrl(blobUrl)
+          if (file.data && typeof file.data === "string" && file.data.trim() && file.data !== "undefined" && file.data !== "null") {
+            if (file.data.startsWith("data:")) {
+              setModelUrl(file.data)
               setModelLoadError(null)
-            } catch (error) {
+              return
+            } else {
               setModelUrl(null)
-              setModelLoadError(`Failed to process file: ${error}`)
+              setModelLoadError("File data is not a valid data URL")
+              return
             }
-          } else {
-            setModelUrl(null)
-            setModelLoadError("Invalid file format")
           }
+          setModelUrl(null)
+          setModelLoadError("File found in DB but has no usable url or data")
+          return
         } else {
           setModelUrl(null)
-          setModelLoadError("File not found in database")
-        }
-      } else {
-        try {
-          new URL(component.model3d)
-          setModelUrl(component.model3d)
-          setModelLoadError(null)
-        } catch (error) {
-          setModelUrl(null)
-          setModelLoadError("Invalid URL format")
+          setModelLoadError("File not found in database for db:// reference")
+          return
         }
       }
+      // If not db://, treat as plain URL
+      // Ensure URL starts with / if it's a relative path
+      let url = component.model3d;
+      if (!url.startsWith('/') && !url.startsWith('http')) {
+        url = '/' + url;
+      }
+      setModelUrl(url)
+      setModelLoadError(null)
     } catch (error: any) {
       setModelUrl(null)
       setModelLoadError(`Failed to resolve model: ${error}`)
     }
-  }, [component.model3d])
+  }, [component.model3d, component.id])
 
   useEffect(() => {
     resolveModelUrl()
@@ -142,74 +138,141 @@ export function InteractiveComponent3D({
   // Load 3D model if available
   useEffect(() => {
     if (!modelUrl) {
+      console.log('No model3d URL provided:', { componentId: component.id });
       setLoadedModel(null)
       setIsLoadingModel(false)
       return
     }
 
+    console.log('Loading 3D model:', {
+      url: modelUrl,
+      componentId: component.id,
+      componentName: component.name
+    });
+
     setIsLoadingModel(true)
-    setModelLoadError(null)
 
     const loader = new OBJLoader()
+    
+    // Create default material
+    const defaultMaterial = new THREE.MeshStandardMaterial({
+      color: 0xcccccc,
+      metalness: 0.3,
+      roughness: 0.7,
+      side: THREE.DoubleSide
+    });
 
-    loader.load(
-      modelUrl,
-      (object) => {
-        // Scale and center the model
-        const box = new THREE.Box3().setFromObject(object)
-        const size = box.getSize(new THREE.Vector3())
-        const maxDimension = Math.max(size.x, size.y, size.z)
+    try {
+      loader.load(
+        modelUrl,
+        (object) => {
+          console.log('Model loaded successfully:', {
+            componentId: component.id,
+            objectChildren: object.children.length,
+            hasGeometry: object.children.some((child: any) => child.geometry),
+            position: object.position,
+            scale: object.scale
+          });
 
-        if (maxDimension > 0) {
-          const scale = 1 / maxDimension
-          object.scale.setScalar(scale)
+          // Scale and center the model
+          const box = new THREE.Box3().setFromObject(object)
+          const size = box.getSize(new THREE.Vector3())
           const center = box.getCenter(new THREE.Vector3())
-          object.position.sub(center.multiplyScalar(scale))
-        }
-
-        // Apply material to all meshes and set userData for selection
-        object.traverse((child) => {
-          if (child instanceof THREE.Mesh) {
-            if (child.material instanceof THREE.MeshStandardMaterial) {
-              child.material.metalness = 0.3
-              child.material.roughness = 0.7
-            } else {
-              child.material = new THREE.MeshStandardMaterial({
-                color: "#ffffff",
-                metalness: 0.3,
-                roughness: 0.7,
-              })
-            }
-            child.castShadow = true
-            child.receiveShadow = true
-            child.userData.componentId = component.id
+          
+          const maxDim = Math.max(size.x, size.y, size.z)
+          if (maxDim > 0) {
+            const scale = 1 / maxDim
+            object.scale.setScalar(scale)
+            object.position.sub(center.multiplyScalar(scale))
           }
-        })
 
-        object.userData.componentId = component.id
-        setLoadedModel(object)
-        setIsLoadingModel(false)
-        setModelLoadError(null)
-      },
-      undefined,
-      (error: any) => {
-        console.error(`Error loading 3D model for ${component.name}:`, error)
-        setLoadedModel(null)
-        setIsLoadingModel(false)
-        setModelLoadError(`Failed to load 3D model: ${error.message || error}`)
+          // Apply default material to all meshes if they don't have one
+          object.traverse((child) => {
+            if ((child as THREE.Mesh).isMesh) {
+              const mesh = child as THREE.Mesh;
+              mesh.visible = true;
+              mesh.castShadow = true;
+              mesh.receiveShadow = true;
+              
+              // If material is missing or invalid, apply default material
+              if (!mesh.material || (Array.isArray(mesh.material) && mesh.material.length === 0)) {
+                console.log('Applying default material to mesh:', mesh.name);
+                mesh.material = defaultMaterial;
+              } else {
+                // Ensure existing materials are properly configured
+                if (Array.isArray(mesh.material)) {
+                  mesh.material = mesh.material.map(mat => 
+                    mat.isMaterial ? mat : defaultMaterial.clone()
+                  );
+                  mesh.material.forEach(mat => {
+                    mat.side = THREE.DoubleSide;
+                    mat.visible = true;
+                    mat.needsUpdate = true;
+                  });
+                } else {
+                  if (!mesh.material.isMaterial) {
+                    mesh.material = defaultMaterial.clone();
+                  }
+                  mesh.material.side = THREE.DoubleSide;
+                  mesh.material.visible = true;
+                  mesh.material.needsUpdate = true;
+                }
+              }
+            }
+          });
 
-        if (modelUrl && modelUrl.startsWith("blob:")) {
-          URL.revokeObjectURL(modelUrl)
+          object.userData.componentId = component.id
+          setLoadedModel(object)
+          setIsLoadingModel(false)
+          setModelLoadError(null)
+        },
+        (xhr) => {
+          console.log(`Loading model progress: ${(xhr.loaded / xhr.total * 100).toFixed(2)}%`);
+        },
+        (err: unknown) => {
+          console.error('Error loading model:', {
+            componentId: component.id,
+            url: modelUrl,
+            error: err instanceof Error ? err.message : 'Unknown error',
+            type: err instanceof ErrorEvent ? err.type : 'unknown'
+          });
+          setLoadedModel(null)
+          setIsLoadingModel(false)
+          setModelLoadError(`Failed to load 3D model: ${err instanceof Error ? err.message : 'Unknown error'}`)
         }
-      },
-    )
+      );
+    } catch (error: unknown) {
+      console.error('Exception during model loading:', error);
+      setLoadedModel(null)
+      setIsLoadingModel(false)
+      setModelLoadError(`Failed to load 3D model: ${error instanceof Error ? error.message : 'Unknown error'}`)
 
-    return () => {
       if (modelUrl && modelUrl.startsWith("blob:")) {
         URL.revokeObjectURL(modelUrl)
       }
     }
-  }, [modelUrl, component.id])
+
+    return () => {
+      if (loadedModel) {
+        loadedModel.traverse((child) => {
+          if ((child as THREE.Mesh).isMesh) {
+            const mesh = child as THREE.Mesh;
+            if (mesh.geometry) mesh.geometry.dispose();
+            if (mesh.material) {
+              if (Array.isArray(mesh.material)) {
+                mesh.material.forEach(mat => mat.dispose());
+              } else {
+                mesh.material.dispose();
+              }
+            }
+          }
+        });
+      }
+      if (modelUrl && modelUrl.startsWith("blob:")) {
+        URL.revokeObjectURL(modelUrl)
+      }
+    }
+  }, [modelUrl, component.id, component.name])
 
   // Create fallback geometry if no 3D model is available
   useEffect(() => {

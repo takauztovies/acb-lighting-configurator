@@ -176,6 +176,12 @@ export function ComponentForm({ onComponentSaved, editingComponent }: ComponentF
     const formData = new FormData();
     formData.append('file', file);
     
+    console.log('Uploading file to backend:', {
+      name: file.name,
+      type: file.type,
+      size: file.size
+    });
+    
     try {
       const res = await fetch('/api/files', {
         method: 'POST',
@@ -184,10 +190,13 @@ export function ComponentForm({ onComponentSaved, editingComponent }: ComponentF
       
       if (!res.ok) {
         const errorData = await res.json();
+        console.error('Upload failed:', errorData);
         throw new Error(errorData.error || 'Upload failed');
       }
       
       const data = await res.json();
+      console.log('File upload response:', data);
+      
       if (!data.url) {
         throw new Error('Invalid response from server');
       }
@@ -204,8 +213,15 @@ export function ComponentForm({ onComponentSaved, editingComponent }: ComponentF
     componentId: string,
     fileType: "image" | "model3d",
   ): Promise<string> => {
+    console.log('Saving file to database:', {
+      name: file.name,
+      type: fileType,
+      componentId
+    });
+    
     try {
       const uploadedFile = await uploadFileToBackend(file);
+      console.log('File saved successfully:', uploadedFile);
       return uploadedFile.url;
     } catch (error) {
       console.error('Error saving file:', error);
@@ -227,9 +243,9 @@ export function ComponentForm({ onComponentSaved, editingComponent }: ComponentF
       let finalCardImageUrl = ""
       let finalModelUrl = ""
 
-      // FIXED: Swapped the assignments
       // Handle main image (detailed view) - goes to cardImage field
       if (imageMethod === "upload" && imageFile) {
+        console.log('Uploading main image:', imageFile.name);
         finalCardImageUrl = await saveFileToDatabase(imageFile, componentId || '', "image")
         setSaveStatus("Saving main image...")
       } else if (imageMethod === "url" && imageUrl) {
@@ -238,6 +254,7 @@ export function ComponentForm({ onComponentSaved, editingComponent }: ComponentF
 
       // Handle thumbnail image (selection) - goes to image field
       if (cardImageMethod === "upload" && cardImageFile) {
+        console.log('Uploading thumbnail image:', cardImageFile.name);
         finalImageUrl = await saveFileToDatabase(cardImageFile, componentId || '', "image")
         setSaveStatus("Saving thumbnail image...")
       } else if (cardImageMethod === "url" && cardImageUrl) {
@@ -246,11 +263,20 @@ export function ComponentForm({ onComponentSaved, editingComponent }: ComponentF
 
       // Handle 3D model
       if (modelMethod === "upload" && modelFile) {
+        console.log('Uploading 3D model:', modelFile.name);
         finalModelUrl = await saveFileToDatabase(modelFile, componentId || '', "model3d")
         setSaveStatus("Saving 3D model...")
       } else if (modelMethod === "url" && modelUrl) {
         finalModelUrl = modelUrl
       }
+
+      console.log('Preparing component data:', {
+        name: formData.name,
+        type: formData.type,
+        image: finalImageUrl,
+        cardImage: finalCardImageUrl,
+        model3d: finalModelUrl
+      });
 
       // Prepare component data
       let component: any = {
@@ -270,6 +296,7 @@ export function ComponentForm({ onComponentSaved, editingComponent }: ComponentF
       }
 
       // Save component (POST for create, PUT for update)
+      console.log('Saving component to database:', component);
       await db.saveComponent(component)
       setSaveStatus("Component saved successfully!")
 

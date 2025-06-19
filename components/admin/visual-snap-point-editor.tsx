@@ -5,7 +5,6 @@ import { Canvas, useThree, useFrame } from "@react-three/fiber"
 import { OrbitControls } from "@react-three/drei"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
@@ -329,52 +328,28 @@ function ModelWithSnapPoints({ component, snapPoints, isPlacementMode, onCompone
     if (!modelUrl) return setLoadedModel(null)
     const loader = new OBJLoader()
     loader.load(modelUrl, (object: THREE.Group) => {
-      // Bake transforms into child meshes
       object.updateMatrixWorld(true);
-      object.traverse((child) => {
-        if ((child as THREE.Mesh).isMesh) {
-          const mesh = child as THREE.Mesh;
-          mesh.updateMatrixWorld(true);
-          mesh.geometry.applyMatrix4(mesh.matrixWorld);
-          mesh.position.set(0, 0, 0);
-          mesh.rotation.set(0, 0, 0);
-          mesh.scale.set(1, 1, 1);
-        }
-      });
       // Center and scale model
       const box = new THREE.Box3().setFromObject(object)
       const size = box.getSize(new THREE.Vector3())
       const maxDim = Math.max(size.x, size.y, size.z)
       const center = box.getCenter(new THREE.Vector3())
-      console.log('[DEBUG] Model bounding box:', box)
-      console.log('[DEBUG] Model bounding box center:', center)
       if (maxDim > 0) {
         const scale = 1 / maxDim
         object.scale.setScalar(scale)
         object.position.sub(center.multiplyScalar(scale))
-        // Force model to origin after centering/scaling
         object.position.set(0, 0, 0)
       }
+      object.updateMatrixWorld(true);
       // Debug: log model structure
       console.log('[DEBUG] Loaded OBJ model structure:', object);
-      // NEW: Log all meshes and force double-sided
+      // Log all meshes and their world positions/bounding boxes
       object.traverse((child) => {
         if ((child as THREE.Mesh).isMesh) {
           const mesh = child as THREE.Mesh;
-          console.log('[DEBUG] Mesh:', mesh.name, mesh, {
-            visible: mesh.visible,
-            material: mesh.material,
-            position: mesh.position,
-            geometry: mesh.geometry,
-          });
-          // Log bounding box and geometry info
-          if (mesh.geometry) {
-            mesh.geometry.computeBoundingBox();
-            const bbox = mesh.geometry.boundingBox;
-            console.log('[DEBUG] Mesh bounding box:', bbox);
-            console.log('[DEBUG] Mesh geometry index:', mesh.geometry.index);
-            console.log('[DEBUG] Mesh geometry position attribute:', mesh.geometry.attributes.position);
-          }
+          mesh.visible = true;
+          mesh.castShadow = true;
+          mesh.receiveShadow = true;
           if (mesh.material) {
             if (Array.isArray(mesh.material)) {
               mesh.material.forEach((mat) => {
@@ -386,11 +361,20 @@ function ModelWithSnapPoints({ component, snapPoints, isPlacementMode, onCompone
               mesh.material.visible = true;
             }
           }
-          mesh.visible = true;
+          mesh.updateMatrixWorld(true);
+          // Log world position and bounding box
+          const meshWorldPos = new THREE.Vector3();
+          mesh.getWorldPosition(meshWorldPos);
+          mesh.geometry.computeBoundingBox();
+          const meshBBox = mesh.geometry.boundingBox;
+          console.log('[DEBUG] Mesh:', mesh.name, {
+            worldPosition: meshWorldPos,
+            boundingBox: meshBBox,
+            geometry: mesh.geometry,
+          });
         }
       });
       setLoadedModel(object)
-      // Store bounding box and center for visualization
       setModelBoundingBox({ box: box.clone(), center: center.clone() })
     })
   }, [modelUrl])
@@ -437,30 +421,32 @@ function ModelWithSnapPoints({ component, snapPoints, isPlacementMode, onCompone
     const rect = gl.domElement.getBoundingClientRect();
     const x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
     const y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-    console.log('[DEBUG] PointerDown event:', {
-      clientX: event.clientX,
-      clientY: event.clientY,
-      rect,
-      normalized: { x, y }
-    });
     raycaster.setFromCamera(new THREE.Vector2(x, y), camera);
-    console.log('[DEBUG] Raycaster:', {
-      origin: raycaster.ray.origin,
-      direction: raycaster.ray.direction
-    });
+
     let intersects: any[] = [];
     if (loadedModel) {
+      // Try raycasting on both the group and all meshes
       const meshes = getAllMeshes(loadedModel);
-      intersects = raycaster.intersectObjects(meshes, true);
-    } else {
-      intersects = raycaster.intersectObject(meshRef.current, true);
+      const meshIntersects = raycaster.intersectObjects(meshes, true);
+      const groupIntersects = raycaster.intersectObject(loadedModel, true);
+      intersects = meshIntersects.length > 0 ? meshIntersects : (Array.isArray(groupIntersects) ? groupIntersects : [groupIntersects]);
     }
+    // No fallback to placeholder mesh
+
     console.log('[DEBUG] handlePointerDown fired. intersects:', intersects);
     if (intersects.length > 0) {
       // Convert world position to local position
       const intersect = intersects[0];
       const localPos = meshRef.current.worldToLocal(intersect.point.clone());
       console.log('[DEBUG] Intersection found. localPos:', localPos, 'face:', intersect.face, 'object:', intersect.object);
+      // Add a debug sphere at the intersection point
+      const debugSphere = new THREE.Mesh(
+        new THREE.SphereGeometry(0.03, 16, 16),
+        new THREE.MeshBasicMaterial({ color: 0xff0000 })
+      );
+      debugSphere.position.copy(intersect.point);
+      debugSphere.name = 'DebugIntersectionSphere';
+      meshRef.current.add(debugSphere);
       onComponentClick([localPos.x, localPos.y, localPos.z], intersect.face ? {
         face: intersect.face,
         object: intersect.object,
@@ -475,25 +461,23 @@ function ModelWithSnapPoints({ component, snapPoints, isPlacementMode, onCompone
   return (
     <group ref={meshRef} onPointerDown={handlePointerDown}>
       {loadedModel ? (
-        <primitive object={loadedModel.clone()} />
+        <>
+          <primitive object={loadedModel.clone()} />
+          {/* Visualize bounding box */}
+          {modelBoundingBox && (
+            <mesh>
+              <boxGeometry args={modelBoundingBox.box.getSize(new THREE.Vector3()).toArray()} />
+              <meshBasicMaterial color="#00ffff" wireframe opacity={0.3} transparent />
+              <primitive object={new THREE.Object3D()} position={modelBoundingBox.box.getCenter(new THREE.Vector3())} />
+            </mesh>
+          )}
+        </>
       ) : (
         <mesh>
           <boxGeometry args={[1, 0.5, 0.3]} />
           <meshStandardMaterial color="#666" opacity={0.7} transparent />
         </mesh>
       )}
-      {/* Visualize model's bounding box as a wireframe */}
-      {modelBoundingBox && (
-        <mesh position={modelBoundingBox.box.getCenter(new THREE.Vector3())}>
-          <boxGeometry args={modelBoundingBox.box.getSize(new THREE.Vector3()).toArray()} />
-          <meshBasicMaterial color="#ff0000" wireframe opacity={0.5} transparent />
-        </mesh>
-      )}
-      {/* Debug: Transparent box at origin */}
-      <mesh position={[0, 0, 0]}>
-        <boxGeometry args={[1, 1, 1]} />
-        <meshBasicMaterial color="#00ff00" transparent opacity={0.1} wireframe />
-      </mesh>
       {/* Render snap points using ComponentSnapPoint */}
       {snapPoints.map((sp) => (
         <ComponentSnapPoint
@@ -1063,7 +1047,7 @@ export function VisualSnapPointEditor({ component, onSnapPointsUpdated, onClose 
                   )}
 
                   <div>
-                    <Label htmlFor="snap-name">Name *</Label>
+                    <label htmlFor="snap-name" className="block text-sm font-medium mb-1">Name *</label>
                     <Input
                       id="snap-name"
                       value={formData.name || ""}
@@ -1073,7 +1057,7 @@ export function VisualSnapPointEditor({ component, onSnapPointsUpdated, onClose 
                   </div>
 
                   <div>
-                    <Label htmlFor="snap-type">Type *</Label>
+                    <label htmlFor="snap-type" className="block text-sm font-medium mb-1">Type *</label>
                     <select
                       id="snap-type"
                       value={formData.type || "mechanical"}
@@ -1091,7 +1075,7 @@ export function VisualSnapPointEditor({ component, onSnapPointsUpdated, onClose 
                   </div>
 
                   <div>
-                    <Label htmlFor="snap-description">Description</Label>
+                    <label htmlFor="snap-description" className="block text-sm font-medium mb-1">Description</label>
                     <Textarea
                       id="snap-description"
                       value={formData.description || ""}
@@ -1103,7 +1087,7 @@ export function VisualSnapPointEditor({ component, onSnapPointsUpdated, onClose 
 
                   <div className="grid grid-cols-3 gap-2">
                     <div>
-                      <Label>Position X</Label>
+                      <label>Position X</label>
                       <Input
                         type="number"
                         step="0.01"
@@ -1129,7 +1113,7 @@ export function VisualSnapPointEditor({ component, onSnapPointsUpdated, onClose 
                       />
                     </div>
                     <div>
-                      <Label>Position Y</Label>
+                      <label>Position Y</label>
                       <Input
                         type="number"
                         step="0.01"
@@ -1155,7 +1139,7 @@ export function VisualSnapPointEditor({ component, onSnapPointsUpdated, onClose 
                       />
                     </div>
                     <div>
-                      <Label>Position Z</Label>
+                      <label>Position Z</label>
                       <Input
                         type="number"
                         step="0.01"

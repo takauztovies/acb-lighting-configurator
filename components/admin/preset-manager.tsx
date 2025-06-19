@@ -383,7 +383,7 @@ function PresetForm({
         {/* Basic Information */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
           <div>
-            <Label htmlFor="preset-name">Preset Name</Label>
+            <label htmlFor="preset-name">Preset Name</label>
             <Input
               id="preset-name"
               type="text"
@@ -394,7 +394,7 @@ function PresetForm({
             />
           </div>
           <div>
-            <Label htmlFor="preset-category">Category</Label>
+            <label htmlFor="preset-category">Category</label>
             <Select value={formData.category} onValueChange={(value) => setFormData({ ...formData, category: value })}>
               <SelectTrigger id="preset-category">
                 <SelectValue />
@@ -411,7 +411,7 @@ function PresetForm({
         </div>
 
         <div className="mb-6">
-          <Label htmlFor="preset-description">Description</Label>
+          <label htmlFor="preset-description">Description</label>
           <Textarea
             id="preset-description"
             value={formData.description}
@@ -423,12 +423,12 @@ function PresetForm({
 
         {/* Room Dimensions */}
         <div className="mb-6">
-          <Label>Room Dimensions (meters)</Label>
+          <label>Room Dimensions (meters)</label>
           <div className="grid grid-cols-3 gap-4 mt-2">
             <div>
-              <Label htmlFor="room-width" className="text-xs">
+              <label htmlFor="room-width" className="text-xs">
                 Width
-              </Label>
+              </label>
               <Input
                 id="room-width"
                 type="number"
@@ -445,9 +445,9 @@ function PresetForm({
               />
             </div>
             <div>
-              <Label htmlFor="room-length" className="text-xs">
+              <label htmlFor="room-length" className="text-xs">
                 Length
-              </Label>
+              </label>
               <Input
                 id="room-length"
                 type="number"
@@ -464,9 +464,9 @@ function PresetForm({
               />
             </div>
             <div>
-              <Label htmlFor="room-height" className="text-xs">
+              <label htmlFor="room-height" className="text-xs">
                 Height
-              </Label>
+              </label>
               <Input
                 id="room-height"
                 type="number"
@@ -502,7 +502,7 @@ function PresetForm({
         <TabsContent value="canvas" className="mt-0">
           <div>
             <div className="flex items-center justify-between mb-2">
-              <Label>Preset Configuration</Label>
+              <label>Preset Configuration</label>
               <Button type="button" variant="outline" size="sm" onClick={resetCanvas}>
                 <X className="w-3 h-3 mr-1" />
                 Clear Canvas
@@ -525,7 +525,7 @@ function PresetForm({
 
           {/* Component Summary */}
           <div className="mt-4">
-            <Label>Components in Preset ({formData.components.length})</Label>
+            <label>Components in Preset ({formData.components.length})</label>
             <div className="mt-2 space-y-2 max-h-32 overflow-y-auto">
               {formData.components.length === 0 ? (
                 <p className="text-sm text-gray-500">No components added yet</p>
@@ -533,7 +533,7 @@ function PresetForm({
                 formData.components.map((comp, index) => {
                   const component = safeComponents.find((c) => c.id === comp.componentId)
                   return (
-                    <div key={index} className="flex items-center justify-between bg-gray-50 p-2 rounded text-sm">
+                    <div key={comp.componentId || index} className="flex items-center justify-between bg-gray-50 p-2 rounded text-sm">
                       <span>{component?.name || "Unknown Component"}</span>
                       <span className="text-gray-500">
                         Position: ({comp.position[0].toFixed(1)}, {comp.position[1].toFixed(1)},{" "}
@@ -550,7 +550,7 @@ function PresetForm({
         <TabsContent value="photo" className="mt-0">
           <div className="space-y-4">
             <div>
-              <Label htmlFor="preset-photo">Upload Photo</Label>
+              <label htmlFor="preset-photo">Upload Photo</label>
               <div className="mt-2">
                 <Input
                   ref={fileInputRef}
@@ -770,10 +770,10 @@ const PresetPreview = React.memo(function PresetPreview({
       <div>
         <h4 className="font-medium mb-2">Components in Preset</h4>
         <div className="space-y-2 max-h-48 overflow-y-auto">
-          {preset.components.map((comp) => {
+          {preset.components.map((comp, idx) => {
             const component = safeComponents.find((c) => c.id === comp.componentId)
             return (
-              <div key={comp.componentId} className="flex items-center justify-between bg-gray-50 p-3 rounded">
+              <div key={comp.componentId || idx} className="flex items-center justify-between bg-gray-50 p-3 rounded">
                 <div className="flex items-center space-x-3">
                   <img
                     src={component?.image || "/placeholder.svg?height=32&width=32&text=Component"}

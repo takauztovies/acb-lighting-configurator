@@ -6,9 +6,7 @@ import { useState, useEffect } from "react"
 import { Plus, Lightbulb, Zap, Link, Power, Package, AlertCircle, RefreshCw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { useConfigurator, type LightComponent } from "./configurator-context"
 import { useTranslation } from "@/hooks/use-translation"
 import { db, type BundleData } from "@/lib/database"
@@ -190,150 +188,151 @@ export function ConfiguratorSidebar() {
 
   return (
     <div className="w-[420px] bg-white border-r border-gray-200 p-6 overflow-y-auto">
-      <Tabs defaultValue="components" className="w-full">
-        <TabsList className="grid w-full grid-cols-5 h-10">
-          <TabsTrigger value="components" className="text-xs px-2">
-            {t("components")}
-          </TabsTrigger>
-          <TabsTrigger value="room" className="text-xs px-2">
-            Room
-          </TabsTrigger>
-          <TabsTrigger value="presets" className="text-xs px-2">
-            {t("presets")}
-          </TabsTrigger>
-          <TabsTrigger value="cables" className="text-xs px-2">
-            Cables
-          </TabsTrigger>
-          <TabsTrigger value="scene" className="text-xs px-2">
-            {t("scene")}
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="components" className="space-y-4">
-          {/* Component refresh section */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center justify-between text-sm">
-                <span>Component Library</span>
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-gray-500">Last updated: {lastRefresh.toLocaleTimeString()}</span>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={handleRefreshComponents}
-                    className="border-gray-300 text-gray-700 hover:bg-gray-50"
-                  >
-                    <RefreshCw className="w-3 h-3" />
-                  </Button>
-                </div>
-              </CardTitle>
-            </CardHeader>
-          </Card>
-
-          {allComponents.length === 0 ? (
-            <div className="text-center py-8">
-              <p className="text-sm text-gray-500 mb-2">{t("noComponentsAvailable")}</p>
-              <p className="text-xs text-gray-400 mb-4">{t("addComponentsInAdmin")}</p>
-              <Button
-                size="sm"
-                onClick={handleRefreshComponents}
-                variant="outline"
-                className="border-gray-300 text-gray-700 hover:bg-gray-50"
-              >
-                <RefreshCw className="w-4 h-4 mr-2" />
-                {t("refreshComponents")}
-              </Button>
+      {/* Native Tabs Implementation */}
+      {(() => {
+        const [activeTab, setActiveTab] = useState("components")
+        return (
+          <>
+            <div className="grid w-full grid-cols-5 h-10 mb-2">
+              <button className={`text-xs px-2 ${activeTab === "components" ? "font-bold border-b-2 border-black" : ""}`} onClick={() => setActiveTab("components")}>{t("components")}</button>
+              <button className={`text-xs px-2 ${activeTab === "room" ? "font-bold border-b-2 border-black" : ""}`} onClick={() => setActiveTab("room")}>Room</button>
+              <button className={`text-xs px-2 ${activeTab === "presets" ? "font-bold border-b-2 border-black" : ""}`} onClick={() => setActiveTab("presets")}>{t("presets")}</button>
+              <button className={`text-xs px-2 ${activeTab === "cables" ? "font-bold border-b-2 border-black" : ""}`} onClick={() => setActiveTab("cables")}>Cables</button>
+              <button className={`text-xs px-2 ${activeTab === "scene" ? "font-bold border-b-2 border-black" : ""}`} onClick={() => setActiveTab("scene")}>{t("scene")}</button>
             </div>
-          ) : (
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center text-sm">
-                  {t("Available Components")}
-                  <Badge variant="outline" className="ml-2 text-xs">
-                    {allComponents.length}
-                  </Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-2">
-                <ComponentTileGrid
-                  components={allComponents.map((component) => {
-                    const isBundle = Boolean((component as ExtendedLightComponent).bundleData)
-                    return {
-                      id: component.id,
-                      name: component.name,
-                      image: component.image,
-                      price: component.price,
-                      type: component.type,
-                      extra: isBundle ? (
-                        <Badge variant="secondary" className="text-xs">{t("bundle")}</Badge>
-                      ) : null,
-                    }
-                  })}
-                  onSelect={(component) => {
-                    const found = allComponents.find((c) => c.id === component.id)
-                    if (found) addComponent(found as ExtendedLightComponent)
-                  }}
-                  showAddButton={false}
-                  isFirstComponent={state.currentConfig.components.length === 0}
-                />
-              </CardContent>
-            </Card>
-          )}
-        </TabsContent>
-
-        <TabsContent value="room" className="space-y-4">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm">Room Dimensions</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <RoomDimensionsControl />
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="presets" className="space-y-4">
-          <PresetSelector />
-        </TabsContent>
-
-        <TabsContent value="cables" className="space-y-4">
-          <CableCalculator />
-        </TabsContent>
-
-        <TabsContent value="scene" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-sm">{t("sceneBackground")}</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <Label htmlFor="scene-upload">{t("uploadSceneImage")}</Label>
-                <Input
-                  id="scene-upload"
-                  type="file"
-                  accept="image/*"
-                  onChange={handleSceneImageUpload}
-                  className="mt-1"
-                />
-              </div>
-              {state.sceneImageSettings &&
-                Object.entries(state.sceneImageSettings).map(
-                  ([surface, imageData]) =>
-                    imageData && (
-                      <div key={surface} className="mt-2">
-                        <p className="text-xs text-gray-500 mb-1">{t(surface)}</p>
-                        <img
-                          src={imageData || "/placeholder.svg"}
-                          alt={`${surface} background`}
-                          className="w-full h-24 object-cover rounded-lg"
-                        />
+            {activeTab === "components" && (
+              <div className="space-y-4">
+                {/* Component refresh section */}
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="flex items-center justify-between text-sm">
+                      <span>Component Library</span>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-500">Last updated: {lastRefresh.toLocaleTimeString()}</span>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={handleRefreshComponents}
+                          className="border-gray-300 text-gray-700 hover:bg-gray-50"
+                        >
+                          <RefreshCw className="w-3 h-3" />
+                        </Button>
                       </div>
-                    ),
+                    </CardTitle>
+                  </CardHeader>
+                </Card>
+
+                {allComponents.length === 0 ? (
+                  <div className="text-center py-8">
+                    <p className="text-sm text-gray-500 mb-2">{t("noComponentsAvailable")}</p>
+                    <p className="text-xs text-gray-400 mb-4">{t("addComponentsInAdmin")}</p>
+                    <Button
+                      size="sm"
+                      onClick={handleRefreshComponents}
+                      variant="outline"
+                      className="border-gray-300 text-gray-700 hover:bg-gray-50"
+                    >
+                      <RefreshCw className="w-4 h-4 mr-2" />
+                      {t("refreshComponents")}
+                    </Button>
+                  </div>
+                ) : (
+                  <Card>
+                    <CardHeader className="pb-3">
+                      <CardTitle className="flex items-center text-sm">
+                        {t("Available Components")}
+                        <Badge variant="outline" className="ml-2 text-xs">
+                          {allComponents.length}
+                        </Badge>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                      <ComponentTileGrid
+                        components={allComponents.map((component) => {
+                          const isBundle = Boolean((component as ExtendedLightComponent).bundleData)
+                          return {
+                            id: component.id,
+                            name: component.name,
+                            image: component.image,
+                            price: component.price,
+                            type: component.type,
+                            extra: isBundle ? (
+                              <Badge variant="secondary" className="text-xs">{t("bundle")}</Badge>
+                            ) : null,
+                          }
+                        })}
+                        onSelect={(component) => {
+                          const found = allComponents.find((c) => c.id === component.id)
+                          if (found) addComponent(found as ExtendedLightComponent)
+                        }}
+                        showAddButton={false}
+                        isFirstComponent={state.currentConfig.components.length === 0}
+                      />
+                    </CardContent>
+                  </Card>
                 )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+              </div>
+            )}
+            {activeTab === "room" && (
+              <div className="space-y-4">
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm">Room Dimensions</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <RoomDimensionsControl />
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+            {activeTab === "presets" && (
+              <div className="space-y-4">
+                <PresetSelector />
+              </div>
+            )}
+            {activeTab === "cables" && (
+              <div className="space-y-4">
+                <CableCalculator />
+              </div>
+            )}
+            {activeTab === "scene" && (
+              <div className="space-y-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-sm">{t("sceneBackground")}</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div>
+                      <label htmlFor="scene-upload" className="block text-sm font-medium mb-1">{t("uploadSceneImage")}</label>
+                      <Input
+                        id="scene-upload"
+                        type="file"
+                        accept="image/*"
+                        onChange={handleSceneImageUpload}
+                        className="mt-1"
+                      />
+                    </div>
+                    {state.sceneImageSettings &&
+                      Object.entries(state.sceneImageSettings).map(
+                        ([surface, imageData]) =>
+                          imageData && (
+                            <div key={surface} className="mt-2">
+                              <p className="text-xs text-gray-500 mb-1">{t(surface)}</p>
+                              <img
+                                src={imageData || "/placeholder.svg"}
+                                alt={`${surface} background`}
+                                className="w-full h-24 object-cover rounded-lg"
+                              />
+                            </div>
+                          ),
+                      )}
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+          </>
+        )
+      })()}
     </div>
   )
 }

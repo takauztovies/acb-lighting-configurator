@@ -3,11 +3,9 @@
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
-import { Settings, Eye, Edit3 } from "lucide-react"
+import { Settings, Eye, Edit3, AlertCircle } from "lucide-react"
 import type { ComponentData } from "@/lib/database"
 import { VisualSnapPointEditor } from "./visual-snap-point-editor"
 
@@ -71,25 +69,23 @@ export function SnapPointManager({ components, onSnapPointsUpdated }: SnapPointM
 
           {/* Component Selection */}
           <div>
-            <Label htmlFor="component-select">Select Component</Label>
-            <Select
+            <label htmlFor="component-select" className="block text-sm font-medium mb-1">Select Component</label>
+            <select
+              id="component-select"
+              className="w-full p-2 border border-gray-300 rounded-md"
               value={selectedComponent?.id || ""}
-              onValueChange={(value) => {
-                const component = components.find((c) => c.id === value)
+              onChange={e => {
+                const component = components.find(c => c.id === e.target.value)
                 setSelectedComponent(component || null)
               }}
             >
-              <SelectTrigger>
-                <SelectValue placeholder="Choose a component to manage snap points" />
-              </SelectTrigger>
-              <SelectContent>
-                {components.map((component) => (
-                  <SelectItem key={component.id} value={component.id}>
-                    {component.name} ({component.type})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              <option value="" disabled>Choose a component to manage snap points</option>
+              {components.map(component => (
+                <option key={component.id} value={component.id}>
+                  {component.name} ({component.type})
+                </option>
+              ))}
+            </select>
           </div>
 
           {selectedComponent && (
@@ -169,6 +165,43 @@ export function SnapPointManager({ components, onSnapPointsUpdated }: SnapPointM
                   <li>• Different shapes represent different snap point types</li>
                 </ul>
               </div>
+
+              {selectedComponent && selectedComponent.type === "connector" && (
+                <>
+                  {!selectedComponent.snapPoints?.some(sp => sp.name === "Wall/Connector Connection") && (
+                    <div className="mb-2 p-2 bg-yellow-100 text-yellow-800 rounded text-sm flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 text-yellow-600" />
+                      This connector does not have a 'Wall/Connector Connection' snap point.
+                      <Button size="sm" variant="outline" className="ml-2" onClick={() => {
+                        const newSnap = {
+                          id: `snap-wall-connector-${Date.now()}`,
+                          name: "Wall/Connector Connection",
+                          type: "mechanical",
+                          position: [0, 0, 0] as [number, number, number],
+                          rotation: [0, 0, 0] as [number, number, number],
+                          maxConnections: 1,
+                          compatibleComponents: [],
+                          compatibleSnapTypes: [],
+                          visualIndicator: { shape: "cube", color: "#3b82f6", size: 0.1, opacity: 0.8 },
+                          isRequired: true,
+                          priority: 1,
+                          createdAt: new Date(),
+                          updatedAt: new Date(),
+                        } as import("@/lib/snap-system").SnapPoint;
+                        const updatedComponent = {
+                          ...selectedComponent,
+                          snapPoints: ([...(selectedComponent.snapPoints || []), newSnap]) as import("@/lib/snap-system").SnapPoint[],
+                          updatedAt: new Date(),
+                        }
+                        setSelectedComponent(updatedComponent)
+                        onSnapPointsUpdated(updatedComponent)
+                      }}>
+                        Add 'Wall/Connector Connection'
+                      </Button>
+                    </div>
+                  )}
+                </>
+              )}
             </>
           )}
         </CardContent>

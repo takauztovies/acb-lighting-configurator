@@ -325,7 +325,12 @@ function configuratorReducer(state: ConfiguratorState, action: Action): Configur
     case "SET_VIEW_MODE":
       return { ...state, viewMode: action.mode }
 
-    case "ADD_COMPONENT":
+    case "ADD_COMPONENT": {
+      // Only allow a connector as the first component
+      if (state.currentConfig.components.length === 0 && action.component.type !== "connector") {
+        // Optionally, set an error state or toast here
+        return state;
+      }
       console.log("Adding component to configuration:", action.component)
       const newComponentCables = calculateAllCables(
         [...state.currentConfig.components, action.component],
@@ -345,6 +350,7 @@ function configuratorReducer(state: ConfiguratorState, action: Action): Configur
         selectedComponentId: action.component.id,
         selectedComponentIds: [action.component.id],
       }
+    }
 
     case "REMOVE_COMPONENT":
       const componentToRemove = state.currentConfig.components.find((c) => c.id === action.componentId)

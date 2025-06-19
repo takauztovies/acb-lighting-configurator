@@ -80,16 +80,25 @@ export interface InspirationData {
   updatedAt: Date
 }
 
+// Placement of a component in a preset
+export interface PresetComponentPlacement {
+  componentId: string;
+  position: [number, number, number];
+  rotation: [number, number, number];
+}
+
 export interface PresetData {
-  id: string
-  name: string
-  description: string
-  components: ComponentData[]
-  preview?: string
-  category?: string
-  tags?: string[]
-  createdAt: Date
-  updatedAt: Date
+  id: string;
+  name: string;
+  description: string;
+  category?: string;
+  tags?: string[];
+  roomDimensions: { width: number; length: number; height: number };
+  components: PresetComponentPlacement[];
+  previewImage?: string;
+  photoImage?: string;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface BundleData {

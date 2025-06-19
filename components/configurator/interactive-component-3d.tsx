@@ -6,6 +6,7 @@ import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js"
 import { db } from "@/lib/database"
 import * as THREE from "three"
 import { ComponentSnapPoint } from "./component-snap-point"
+import { Html } from "@react-three/drei"
 
 interface InteractiveComponent3DProps {
   component: {
@@ -128,7 +129,7 @@ export function InteractiveComponent3D({
           setModelLoadError("Invalid URL format")
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       setModelUrl(null)
       setModelLoadError(`Failed to resolve model: ${error}`)
     }
@@ -191,7 +192,7 @@ export function InteractiveComponent3D({
         setModelLoadError(null)
       },
       undefined,
-      (error) => {
+      (error: any) => {
         console.error(`Error loading 3D model for ${component.name}:`, error)
         setLoadedModel(null)
         setIsLoadingModel(false)
@@ -321,6 +322,19 @@ export function InteractiveComponent3D({
           onClick={handleClick}
           userData={{ componentId: component.id }}
         />
+      ) : modelLoadError ? (
+        // Show a red box and error text if model fails to load
+        <group>
+          <mesh>
+            <boxGeometry args={[0.5, 0.5, 0.5]} />
+            <meshStandardMaterial color="#ff3333" />
+          </mesh>
+          {/* Error label */}
+          <Html position={[0, 0.4, 0]} center>
+            <div className="bg-red-600 text-white px-2 py-1 rounded text-xs">Model failed to load</div>
+          </Html>
+          {/* TODO: Check connector data in admin if you see this error */}
+        </group>
       ) : geometry && material ? (
         <mesh
           geometry={geometry}
@@ -355,35 +369,31 @@ export function InteractiveComponent3D({
       )}
 
       {/* Component snap points - only show if component has defined snap points */}
-      {shouldShowSnapPoints &&
-        hasSnapPoints &&
-        component.snapPoints?.map((snapPoint) => {
-          if (!snapPoint || !snapPoint.id) return null
-
-          // Use the exact position defined in the snap point data
-          const snapPosX = snapPoint.position?.[0] ?? 0
-          const snapPosY = snapPoint.position?.[1] ?? 0
-          const snapPosZ = snapPoint.position?.[2] ?? 0
-
-          // Check if this snap point is currently selected
-          const isSnapPointSelected =
-            selectedSnapPoint?.componentId === component.id && selectedSnapPoint?.snapPointId === snapPoint.id
-
-          return (
-            <ComponentSnapPoint
-              key={snapPoint.id}
-              position={[snapPosX, snapPosY, snapPosZ]}
-              snapPoint={{
-                id: snapPoint.id,
-                type: snapPoint.type || "accessory",
-                name: snapPoint.name || "Snap Point",
-                position: [snapPosX, snapPosY, snapPosZ],
-              }}
-              isActive={isSnapPointSelected}
-              onClick={handleSnapPointClick(snapPoint.id)}
-            />
-          )
-        })}
+      {shouldShowSnapPoints && hasSnapPoints &&
+        // Only render unique, valid snap points by id
+        Array.from(new Map((component.snapPoints || []).filter(sp => sp && sp.id).map(sp => [sp.id, sp])).values())
+          .map((snapPoint) => {
+            if (!snapPoint || !snapPoint.id) return null
+            const snapPosX = snapPoint.position?.[0] ?? 0
+            const snapPosY = snapPoint.position?.[1] ?? 0
+            const snapPosZ = snapPoint.position?.[2] ?? 0
+            const isSnapPointSelected =
+              selectedSnapPoint?.componentId === component.id && selectedSnapPoint?.snapPointId === snapPoint.id
+            return (
+              <ComponentSnapPoint
+                key={snapPoint.id}
+                position={[snapPosX, snapPosY, snapPosZ]}
+                snapPoint={{
+                  id: snapPoint.id,
+                  type: snapPoint.type || "accessory",
+                  name: snapPoint.name || "Snap Point",
+                  position: [snapPosX, snapPosY, snapPosZ],
+                }}
+                isActive={isSnapPointSelected}
+                onClick={handleSnapPointClick(snapPoint.id)}
+              />
+            )
+          })}
     </group>
   )
 }

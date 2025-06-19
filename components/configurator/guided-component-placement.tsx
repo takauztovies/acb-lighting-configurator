@@ -99,6 +99,29 @@ export function GuidedComponentPlacement({ setupData, onComplete }: GuidedCompon
     const componentTemplate = availableComponents.find((c) => c.type === componentType)
     if (!componentTemplate) return
 
+    // If this is the first component and it's a connector, snap to wall using 'Wall/Connector Connection'
+    if (state.currentConfig.components.length === 0 && componentType === "connector") {
+      const wallSnap = componentTemplate.snapPoints?.find(sp => sp.name === "Wall/Connector Connection")
+      if (wallSnap) {
+        // Calculate wall position from setupData
+        const wallPos = calculateWallSnapPosition(setupData, wallSnap.position)
+        const newComponent = {
+          ...componentTemplate,
+          id: `${componentType}-${Date.now()}`,
+          position: wallPos,
+          rotation,
+          scale: [1, 1, 1] as [number, number, number],
+          connections: [],
+          snapPoints: componentTemplate.snapPoints || [],
+          price: componentTemplate.price,
+        }
+        dispatch({ type: "ADD_COMPONENT", component: newComponent })
+        return
+      } else {
+        console.warn("Connector does not have a 'Wall/Connector Connection' snap point.")
+      }
+    }
+    // Fallback: regular placement
     const newComponent = {
       ...componentTemplate,
       id: `${componentType}-${Date.now()}`,
@@ -109,7 +132,6 @@ export function GuidedComponentPlacement({ setupData, onComplete }: GuidedCompon
       snapPoints: componentTemplate.snapPoints || [],
       price: componentTemplate.price,
     }
-
     dispatch({ type: "ADD_COMPONENT", component: newComponent })
   }
 
@@ -220,6 +242,42 @@ export function GuidedComponentPlacement({ setupData, onComplete }: GuidedCompon
   }
 
   const compatibleComponents = getCompatibleComponents()
+
+  // Helper to calculate wall snap position
+  function calculateWallSnapPosition(setupData: any, snapOffset: [number, number, number]): [number, number, number] {
+    // Use setupData.mountingWall and room dimensions to determine wall position
+    // For now, assume room is centered at (0,0,0)
+    const room = state.roomDimensions || { width: 8, length: 6, height: 3 }
+    let x = 0, y = 0, z = 0
+    switch (setupData.mountingWall) {
+      case "left":
+        x = -room.width / 2
+        y = setupData.mountingHeight || room.height / 2
+        z = 0
+        break
+      case "right":
+        x = room.width / 2
+        y = setupData.mountingHeight || room.height / 2
+        z = 0
+        break
+      case "back":
+        x = 0
+        y = setupData.mountingHeight || room.height / 2
+        z = -room.length / 2
+        break
+      case "front":
+        x = 0
+        y = setupData.mountingHeight || room.height / 2
+        z = room.length / 2
+        break
+      default:
+        x = 0
+        y = setupData.mountingHeight || room.height / 2
+        z = 0
+    }
+    // Subtract the snap point offset so the snap aligns with the wall
+    return [x - snapOffset[0], y - snapOffset[1], z - snapOffset[2]]
+  }
 
   return (
     <div className="space-y-6">

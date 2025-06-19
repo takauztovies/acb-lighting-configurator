@@ -42,8 +42,10 @@ model Preset {
   id          String   @id @default(cuid())
   name        String
   description String
-  components  Json     // Array of component data
-  preview     String?
+  components  Json     // Array of { componentId, position, rotation }
+  roomDimensions Json  // { width, length, height }
+  previewImage String?
+  photoImage  String?
   category    String?
   tags        Json?    // Array of strings
   createdAt   DateTime @default(now())

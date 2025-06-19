@@ -8,12 +8,9 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { db, type ComponentData, type PresetData } from "@/lib/database"
+import { db, type ComponentData, type PresetData, type PresetComponentPlacement } from "@/lib/database"
 import { PresetCanvas } from "./preset-canvas"
 import { useTranslation } from "@/hooks/use-translation"
 
@@ -164,10 +161,11 @@ export function PresetManager({
 
   const groupedPresets = presets.reduce(
     (acc, preset) => {
-      if (!acc[preset.category]) {
-        acc[preset.category] = []
+      const key = preset.category || "Uncategorized"
+      if (!acc[key]) {
+        acc[key] = []
       }
-      acc[preset.category].push(preset)
+      acc[key].push(preset)
       return acc
     },
     {} as Record<string, PresetData[]>,
@@ -204,11 +202,12 @@ export function PresetManager({
       </div>
 
       {/* Preset Creation/Editing Dialog */}
-      <Dialog open={isCreating} onOpenChange={setIsCreating}>
-        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{editingPreset ? "Edit Preset" : "Create New Preset"}</DialogTitle>
-          </DialogHeader>
+      {isCreating && (
+        <dialog open className="max-w-6xl max-h-[90vh] overflow-y-auto rounded-lg border bg-white shadow-xl p-6">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-bold">{editingPreset ? "Edit Preset" : "Create New Preset"}</h2>
+            <button onClick={handleCloseDialog} className="text-gray-500 hover:text-gray-900">✕</button>
+          </div>
           <ErrorBoundary>
             <PresetForm
               preset={editingPreset}
@@ -217,18 +216,19 @@ export function PresetManager({
               onCancel={handleCloseDialog}
             />
           </ErrorBoundary>
-        </DialogContent>
-      </Dialog>
+        </dialog>
+      )}
 
       {/* Preset Preview Dialog */}
-      <Dialog open={!!previewPreset} onOpenChange={(open) => !open && setPreviewPreset(null)}>
-        <DialogContent className="max-w-4xl max-h-[80vh]">
-          <DialogHeader>
-            <DialogTitle>Preview: {previewPreset?.name}</DialogTitle>
-          </DialogHeader>
+      {!!previewPreset && (
+        <dialog open className="max-w-4xl max-h-[80vh] overflow-y-auto rounded-lg border bg-white shadow-xl p-6">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-bold">Preview: {previewPreset?.name}</h2>
+            <button onClick={() => setPreviewPreset(null)} className="text-gray-500 hover:text-gray-900">✕</button>
+          </div>
           {previewPreset && <PresetPreview preset={previewPreset} components={components} />}
-        </DialogContent>
-      </Dialog>
+        </dialog>
+      )}
 
       {/* Loading State */}
       {isLoading ? (
@@ -404,18 +404,18 @@ function PresetForm({
           </div>
           <div>
             <label htmlFor="preset-category">Category</label>
-            <Select value={formData.category} onValueChange={(value) => setFormData({ ...formData, category: value })}>
-              <SelectTrigger id="preset-category">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
+            <div>
+              <select
+                id="preset-category"
+                value={formData.category}
+                onChange={e => setFormData({ ...formData, category: e.target.value })}
+                className="w-full border rounded p-2"
+              >
                 {presetCategories.map((category) => (
-                  <SelectItem key={category} value={category}>
-                    {category}
-                  </SelectItem>
+                  <option key={category} value={category}>{category}</option>
                 ))}
-              </SelectContent>
-            </Select>
+              </select>
+            </div>
           </div>
         </div>
 
@@ -496,19 +496,25 @@ function PresetForm({
       </form>
 
       {/* Tabs for Canvas and Photo - Outside of form to prevent submission */}
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid grid-cols-2 mb-4">
-          <TabsTrigger value="canvas">
+      <div className="w-full">
+        <div className="grid grid-cols-2 mb-4">
+          <button
+            className={`flex items-center gap-2 px-4 py-2 rounded-t ${activeTab === "canvas" ? "bg-gray-200 font-bold" : "bg-gray-100"}`}
+            onClick={() => setActiveTab("canvas")}
+          >
             <Camera className="w-4 h-4 mr-2" />
             3D Configuration
-          </TabsTrigger>
-          <TabsTrigger value="photo">
+          </button>
+          <button
+            className={`flex items-center gap-2 px-4 py-2 rounded-t ${activeTab === "photo" ? "bg-gray-200 font-bold" : "bg-gray-100"}`}
+            onClick={() => setActiveTab("photo")}
+          >
             <Upload className="w-4 h-4 mr-2" />
             Photo Upload
-          </TabsTrigger>
-        </TabsList>
+          </button>
+        </div>
 
-        <TabsContent value="canvas" className="mt-0">
+        <div className="mt-0" hidden={activeTab !== "canvas"}>
           <div>
             <div className="flex items-center justify-between mb-2">
               <label>Preset Configuration</label>
@@ -545,8 +551,7 @@ function PresetForm({
                     <div key={comp.componentId || index} className="flex items-center justify-between bg-gray-50 p-2 rounded text-sm">
                       <span>{component?.name || "Unknown Component"}</span>
                       <span className="text-gray-500">
-                        Position: ({comp.position[0].toFixed(1)}, {comp.position[1].toFixed(1)},{" "}
-                        {comp.position[2].toFixed(1)})
+                        Position: ({comp.position[0].toFixed(1)}, {comp.position[1].toFixed(1)}, {comp.position[2].toFixed(1)})
                       </span>
                     </div>
                   )
@@ -554,9 +559,9 @@ function PresetForm({
               )}
             </div>
           </div>
-        </TabsContent>
+        </div>
 
-        <TabsContent value="photo" className="mt-0">
+        <div className="mt-0" hidden={activeTab !== "photo"}>
           <div className="space-y-4">
             <div>
               <label htmlFor="preset-photo">Upload Photo</label>
@@ -604,8 +609,8 @@ function PresetForm({
               </div>
             )}
           </div>
-        </TabsContent>
-      </Tabs>
+        </div>
+      </div>
 
       {/* Form Actions - Outside of form, using button click handlers */}
       <div className="flex justify-end space-x-2 pt-4 border-t">
@@ -811,10 +816,10 @@ const PresetPreview = React.memo(function PresetPreview({
 
 // Error Boundary Component
 class ErrorBoundary extends React.Component<
-  {},
+  { children: React.ReactNode },
   { hasError: boolean; error: Error | null; errorInfo: React.ErrorInfo | null }
 > {
-  constructor(props: {}) {
+  constructor(props: { children: React.ReactNode }) {
     super(props)
     this.state = { hasError: false, error: null, errorInfo: null }
   }

@@ -43,9 +43,15 @@ const componentFormSchema = z.object({
   }),
   price: z.coerce.number().min(0),
   scale: z.coerce.number().min(0.1).max(10),
-  image: z.string().url().optional().or(z.literal('')),
-  cardImage: z.string().url().optional().or(z.literal('')),
-  model3d: z.string().url().optional().or(z.literal('')),
+  image: z.string().refine((val) => val === '' || val.startsWith('/') || z.string().url().safeParse(val).success, {
+    message: "Must be a valid URL or file path"
+  }).optional(),
+  cardImage: z.string().refine((val) => val === '' || val.startsWith('/') || z.string().url().safeParse(val).success, {
+    message: "Must be a valid URL or file path"
+  }).optional(),
+  model3d: z.string().refine((val) => val === '' || val.startsWith('/') || z.string().url().safeParse(val).success, {
+    message: "Must be a valid URL or file path"
+  }).optional(),
 });
 
 type ComponentFormValues = z.infer<typeof componentFormSchema>;

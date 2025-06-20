@@ -3,6 +3,7 @@
 import { useCallback, useEffect } from "react"
 import { useConfigurator } from "./configurator-context"
 import Scene3D from "./scene-3d"
+import { TransformControls } from "./transform-controls"
 import { Button } from "@/components/ui/button"
 import { Grid3X3, CircleDot, Trash2, X, Target } from "lucide-react"
 
@@ -50,6 +51,19 @@ export function ConfiguratorViewer() {
   // Toggle snap points visibility
   const toggleSnapPoints = useCallback(() => {
     dispatch({ type: "TOGGLE_LABELS" })
+  }, [dispatch])
+
+  // Handle transform updates from transform controls
+  const handleTransformUpdate = useCallback((componentId: string, transform: {
+    rotation?: [number, number, number]
+    scale?: [number, number, number]
+    position?: [number, number, number]
+  }) => {
+    dispatch({ 
+      type: "UPDATE_COMPONENT", 
+      componentId, 
+      updates: transform 
+    })
   }, [dispatch])
 
   // Keyboard controls
@@ -102,6 +116,24 @@ export function ConfiguratorViewer() {
         />
       </div>
 
+      {/* Transform Controls Panel */}
+      {state.selectedComponentIds.length === 1 && (
+        <div className="absolute top-4 left-4 z-20">
+          <TransformControls
+            selectedComponentId={state.selectedComponentIds[0]}
+            onTransform={handleTransformUpdate}
+            currentTransform={{
+              position: state.currentConfig.components.find(c => c.id === state.selectedComponentIds[0])?.position,
+              rotation: state.currentConfig.components.find(c => c.id === state.selectedComponentIds[0])?.rotation,
+              scale: state.currentConfig.components.find(c => c.id === state.selectedComponentIds[0])?.scale || [1, 1, 1],
+              initialPosition: state.currentConfig.components.find(c => c.id === state.selectedComponentIds[0])?.initialPosition,
+              initialRotation: state.currentConfig.components.find(c => c.id === state.selectedComponentIds[0])?.initialRotation,
+              initialScale: state.currentConfig.components.find(c => c.id === state.selectedComponentIds[0])?.initialScale
+            }}
+          />
+        </div>
+      )}
+
       {/* Toolbar */}
       <div className="absolute top-4 right-4 flex gap-2">
         <Button
@@ -134,7 +166,7 @@ export function ConfiguratorViewer() {
 
       {/* Snap Point Selection Indicator */}
       {state.selectedSnapPoint && (
-        <div className="absolute top-4 left-4 bg-green-500 text-white p-3 rounded-lg shadow-lg max-w-sm">
+        <div className="absolute top-4 left-96 bg-green-500 text-white p-3 rounded-lg shadow-lg max-w-sm">
           <div className="flex items-center gap-2">
             <Target className="h-5 w-5" />
             <div className="flex-1">

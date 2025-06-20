@@ -4,11 +4,12 @@ import type React from "react"
 
 import { useState, useRef, useEffect, useCallback } from "react"
 import { Canvas, useThree } from "@react-three/fiber"
-import { OrbitControls, Environment, Html, TransformControls } from "@react-three/drei"
+import { OrbitControls, Html } from "@react-three/drei"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Plus, Move, RotateCw, Trash2, Camera, Grid3X3, Copy, Undo2, Redo2, MousePointer } from "lucide-react"
+import { TransformControls } from "../configurator/transform-controls"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import type { ComponentData } from "@/lib/database"
 import { db } from "@/lib/database"
@@ -30,6 +31,9 @@ interface CanvasComponent {
   componentId: string
   position: [number, number, number]
   rotation: [number, number, number]
+  initialPosition?: [number, number, number]
+  initialRotation?: [number, number, number]
+  initialScale?: [number, number, number]
 }
 
 export function PresetCanvas({ components, roomDimensions, initialComponents = [], onUpdate }: PresetCanvasProps) {
@@ -153,6 +157,9 @@ export function PresetCanvas({ components, roomDimensions, initialComponents = [
         componentId,
         position: position || [0, 0.5, 0],
         rotation: [0, 0, 0],
+        initialPosition: position || [0, 0.5, 0],
+        initialRotation: [0, 0, 0],
+        initialScale: [1, 1, 1],
       }
 
       setCanvasComponents((prev) => {
@@ -255,6 +262,30 @@ export function PresetCanvas({ components, roomDimensions, initialComponents = [
   }, [canvasComponents, onUpdate])
 
   const primarySelected = selectedComponentIds[0]
+  const primaryComponent = canvasComponents.find(comp => comp.id === primarySelected)
+
+  // Handle transform updates from the UI controls
+  const handleTransformUpdate = useCallback((componentId: string, transform: {
+    rotation?: [number, number, number]
+    scale?: [number, number, number]
+    position?: [number, number, number]
+  }) => {
+    setCanvasComponents(prev => 
+      prev.map(comp => {
+        if (comp.id === componentId) {
+          const updated = { ...comp }
+          if (transform.position) {
+            updated.position = transform.position
+          }
+          if (transform.rotation) {
+            updated.rotation = transform.rotation
+          }
+          return updated
+        }
+        return comp
+      })
+    )
+  }, [])
 
   return (
     <div className="flex h-96">
@@ -423,16 +454,31 @@ export function PresetCanvas({ components, roomDimensions, initialComponents = [
           )}
         </div>
 
+        {/* Transform Controls Panel */}
+        {primarySelected && primaryComponent && (
+          <div className="absolute top-4 right-4 z-20">
+            <TransformControls
+              selectedComponentId={primarySelected}
+              onTransform={handleTransformUpdate}
+                          currentTransform={{
+              position: primaryComponent.position,
+              rotation: primaryComponent.rotation,
+              scale: [1, 1, 1],
+              initialPosition: primaryComponent.initialPosition || primaryComponent.position,
+              initialRotation: primaryComponent.initialRotation || primaryComponent.rotation,
+              initialScale: primaryComponent.initialScale || [1, 1, 1]
+            }}
+            />
+          </div>
+        )}
+
         {/* Selection Info */}
-        {selectedComponentIds.length > 0 && (
+        {selectedComponentIds.length > 0 && !primarySelected && (
           <div className="absolute top-4 right-4 bg-white/95 rounded-lg shadow-lg p-3 text-sm">
             <div className="font-medium">
               {selectedComponentIds.length} component{selectedComponentIds.length > 1 ? "s" : ""} selected
             </div>
             <div className="text-xs text-gray-500 mt-1">Delete: Del key • Copy: Ctrl+C • Paste: Ctrl+V</div>
-            {mode === "rotate" && (
-              <div className="text-xs text-blue-600 mt-1">Rotation mode active - drag the rings to rotate</div>
-            )}
           </div>
         )}
 
@@ -447,8 +493,7 @@ export function PresetCanvas({ components, roomDimensions, initialComponents = [
 
         {/* Canvas */}
         <Canvas ref={canvasRef} camera={{ position: [5, 5, 5], fov: 75 }} shadows>
-          {/* Enhanced lighting setup matching snap points editor */}
-          <Environment preset="city" />
+          {/* Enhanced lighting setup */}
           <ambientLight intensity={0.6} />
           <directionalLight position={[5, 5, 5]} intensity={0.8} castShadow />
           <directionalLight position={[-5, 5, -5]} intensity={0.4} />
@@ -946,63 +991,7 @@ function EnhancedCanvasComponent3D({
         </mesh>
       )}
 
-      {/* Transform controls for primary selection */}
-      {isPrimary && mode === "move" && (
-        <TransformControls
-          ref={transformRef}
-          object={meshRef as any}
-          mode="translate"
-          onMouseDown={() => {
-            onTransformStart()
-            if (orbitControlsRef.current) {
-              orbitControlsRef.current.enabled = false
-            }
-          }}
-          onMouseUp={() => {
-            onTransformEnd()
-            if (orbitControlsRef.current) {
-              orbitControlsRef.current.enabled = true
-            }
-          }}
-          onObjectChange={() => {
-            if (meshRef.current) {
-              const position = meshRef.current.position.toArray() as [number, number, number]
-              if (snapToGrid) {
-                position[0] = Math.round(position[0] / 0.5) * 0.5
-                position[1] = Math.round(position[1] / 0.25) * 0.25
-                position[2] = Math.round(position[2] / 0.5) * 0.5
-              }
-              onPositionChange(component.id, position)
-            }
-          }}
-        />
-      )}
 
-      {isPrimary && mode === "rotate" && (
-        <TransformControls
-          ref={transformRef}
-          object={meshRef as any}
-          mode="rotate"
-          onMouseDown={() => {
-            onTransformStart()
-            if (orbitControlsRef.current) {
-              orbitControlsRef.current.enabled = false
-            }
-          }}
-          onMouseUp={() => {
-            onTransformEnd()
-            if (orbitControlsRef.current) {
-              orbitControlsRef.current.enabled = true
-            }
-          }}
-          onObjectChange={() => {
-            if (meshRef.current) {
-              const rotation = meshRef.current.rotation.toArray().slice(0, 3) as [number, number, number]
-              onRotationChange(component.id, rotation)
-            }
-          }}
-        />
-      )}
 
       {/* Component label */}
       {showLabel && (

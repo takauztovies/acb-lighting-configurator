@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { useConfigurator, type Component, type LightComponent, type SetupData } from "./configurator-context"
 import { db } from "@/lib/database"
+import { boundarySystem } from "@/lib/boundary-system"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -89,8 +90,8 @@ export function GuidedComponentPlacement({ setupData, onComplete }: GuidedCompon
         height = room.height - 0.4;
         break;
       case "connector":
-        // Connectors attach to tracks or other components
-        height = room.height - 0.4;
+        // Connectors should be positioned at socket level when connected to socket
+        height = (setupData?.socketPosition as any)?.y || room.height - 0.4;
         break;
       default:
         // Default to reasonable hanging height
@@ -119,7 +120,7 @@ export function GuidedComponentPlacement({ setupData, onComplete }: GuidedCompon
     
     // Use socket position if available, but adjust height appropriately
     if (setupData?.socketPosition) {
-             if ((setupData.socketPosition as any).wall === "ceiling") {
+      if ((setupData.socketPosition as any).wall === "ceiling") {
         // For ceiling sockets, place components hanging below
         position = [
           setupData.socketPosition.x,
@@ -130,7 +131,9 @@ export function GuidedComponentPlacement({ setupData, onComplete }: GuidedCompon
         // For wall sockets, use socket position but adjust for component type
         position = [
           setupData.socketPosition.x,
-          componentType === "power-supply" ? setupData.socketPosition.y : height,
+          componentType === "connector" || componentType === "power-supply" 
+            ? setupData.socketPosition.y 
+            : height,
           setupData.socketPosition.z
         ]
       }
@@ -142,36 +145,64 @@ export function GuidedComponentPlacement({ setupData, onComplete }: GuidedCompon
   // Handle direct component placement (when no snap point is selected)
   const handleDirectComponentPlacement = (componentType: string, componentTemplate: LightComponent) => {
     // Calculate position near ceiling
-    const position = calculateInitialPosition(componentType)
+    const initialPosition = calculateInitialPosition(componentType)
 
     // Calculate initial rotation based on component type and placement location
-    let rotation: [number, number, number] = [0, 0, 0]
+    let initialRotation: [number, number, number] = [0, 0, 0]
     if (componentType === "connector") {
       // For connectors, rotate 180° around X-axis to point downward
-      rotation = [Math.PI, 0, 0]
+      initialRotation = [Math.PI, 0, 0]
     } else if (componentType === "track") {
       // For tracks, ensure horizontal alignment
-      rotation = [0, 0, 0]
+      initialRotation = [0, 0, 0]
     }
 
-    // Create new component with proper scale
+    // Apply boundary constraints and smart positioning
+    const roomDims = state.roomDimensions || { width: 8, length: 6, height: 3 }
+    const scale: [number, number, number] = [
+      componentTemplate.specifications?.scale || 1,
+      componentTemplate.specifications?.scale || 1,
+      componentTemplate.specifications?.scale || 1
+    ]
+    
+    const constraintResult = boundarySystem.validateAndCorrectPosition(
+      componentType,
+      initialPosition,
+      initialRotation,
+      scale,
+      roomDims
+    )
+
+    // Show user feedback if positioning was corrected
+    if (constraintResult.corrected && constraintResult.reason) {
+      console.log(`✅ Smart positioning: ${constraintResult.reason}`)
+      // You could show a toast notification here
+    }
+
+    // Apply default scale for specific components
+    let finalScale = scale
+    if (componentTemplate.name?.toLowerCase().includes('easy link end cap white') || 
+        componentTemplate.name?.toLowerCase().includes('connector')) {
+      finalScale = [0.5, 0.5, 0.5] // 50% scale for end caps
+    }
+
+    // Create new component with constrained position and rotation
     const newComponent: Component = {
       id: `${componentType}-${Date.now()}`,
       name: componentTemplate.name,
       type: componentTemplate.type,
       model3d: componentTemplate.model3d,
       image: componentTemplate.image,
-      position,
-      rotation,
-      scale: [
-        componentTemplate.specifications?.scale || 1,
-        componentTemplate.specifications?.scale || 1,
-        componentTemplate.specifications?.scale || 1
-      ] as [number, number, number],
+      position: constraintResult.position,
+      rotation: constraintResult.rotation,
+      scale: finalScale,
       connections: [],
       snapPoints: componentTemplate.snapPoints || [],
       price: componentTemplate.price || 0,
-      properties: componentTemplate.specifications || {}
+      properties: componentTemplate.specifications || {},
+      initialPosition: constraintResult.position, // Store initial position for reset
+      initialRotation: constraintResult.rotation,
+      initialScale: finalScale
     }
 
     dispatch({ type: "ADD_COMPONENT", component: newComponent })
@@ -226,6 +257,15 @@ export function GuidedComponentPlacement({ setupData, onComplete }: GuidedCompon
       targetSnapPoint
     )
     
+    // Apply default scale for specific components
+    const defaultScale = componentTemplate.specifications?.scale || 1
+    let componentScale: [number, number, number] = [defaultScale, defaultScale, defaultScale]
+    
+    if (componentTemplate.name?.toLowerCase().includes('easy link end cap white') || 
+        componentTemplate.name?.toLowerCase().includes('connector')) {
+      componentScale = [0.5, 0.5, 0.5] // 50% scale for end caps
+    }
+
     // Create new component with calculated position and rotation
     const newComponent: Component = {
       id: `${componentTemplate.type}-${Date.now()}`,
@@ -235,15 +275,14 @@ export function GuidedComponentPlacement({ setupData, onComplete }: GuidedCompon
       image: componentTemplate.image,
       position: connectionData.position,
       rotation: connectionData.rotation,
-      scale: [
-        componentTemplate.specifications?.scale || 1,
-        componentTemplate.specifications?.scale || 1,
-        componentTemplate.specifications?.scale || 1
-      ] as [number, number, number],
+      scale: componentScale,
       connections: [sourceComponent.id], // Track connection
       snapPoints: componentTemplate.snapPoints || [],
       price: componentTemplate.price || 0,
-      properties: componentTemplate.specifications || {}
+      properties: componentTemplate.specifications || {},
+      initialPosition: connectionData.position, // Store initial position for reset
+      initialRotation: connectionData.rotation,
+      initialScale: componentScale
     }
 
     // Add connection to source component as well
@@ -417,19 +456,11 @@ export function GuidedComponentPlacement({ setupData, onComplete }: GuidedCompon
                         className="w-12 h-12 rounded object-cover"
                       />
                       <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-1">
-                          <h4 className="font-medium text-sm">{component.name}</h4>
-                          {state.selectedSnapPoint ? (
-                            <Badge className="text-xs bg-green-100 text-green-800">
-                              <Zap className="h-3 w-3 mr-1" />
-                              Connect
-                            </Badge>
-                          ) : (
-                            <Badge className="text-xs bg-blue-100 text-blue-800">Add</Badge>
-                          )}
+                        <div className="mb-1">
+                          <h4 className="font-medium text-sm leading-tight">{component.name}</h4>
                         </div>
-                        <p className="text-xs text-gray-600">€{component.price}</p>
-                        <p className="text-xs text-gray-500">
+                        <p className="text-xs text-gray-600 mb-1">€{component.price}</p>
+                        <p className="text-xs text-gray-500 leading-tight">
                           {state.selectedSnapPoint
                             ? "Click to connect to selected snap point"
                             : "Click to place in scene"}

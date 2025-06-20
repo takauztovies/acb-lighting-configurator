@@ -3,6 +3,7 @@
 import type React from "react"
 import { createContext, useContext, useReducer, useEffect, type ReactNode } from "react"
 import { db, type ComponentData } from "@/lib/database"
+import { boundarySystem } from "@/lib/boundary-system"
 import * as THREE from "three"
 
 // Define types
@@ -21,6 +22,9 @@ export interface Component {
   connections: string[]
   properties?: Record<string, any>
   snapPoints?: SnapPoint[]
+  initialPosition?: [number, number, number]
+  initialRotation?: [number, number, number]
+  initialScale?: [number, number, number]
 }
 
 export interface SnapPoint {
@@ -353,8 +357,29 @@ function configuratorReducer(state: ConfiguratorState, action: Action): Configur
         return state;
       }
       console.log("Adding component to configuration:", action.component)
+      
+      // Apply boundary constraints to new component
+      const roomDims = state.roomDimensions || { width: 8, length: 6, height: 3 }
+      const constraintResult = boundarySystem.validateAndCorrectPosition(
+        action.component.type,
+        action.component.position || [0, 0, 0],
+        action.component.rotation || [0, 0, 0],
+        action.component.scale || [1, 1, 1],
+        roomDims
+      )
+      
+      const constrainedComponent = {
+        ...action.component,
+        position: constraintResult.position,
+        rotation: constraintResult.rotation
+      }
+      
+      if (constraintResult.corrected && constraintResult.reason) {
+        console.log(`Component positioning corrected: ${constraintResult.reason}`)
+      }
+      
       const newComponentCables = calculateAllCables(
-        [...state.currentConfig.components, action.component],
+        [...state.currentConfig.components, constrainedComponent],
         state.socketPosition,
         state.cablePricing,
       )
@@ -362,14 +387,14 @@ function configuratorReducer(state: ConfiguratorState, action: Action): Configur
         ...state,
         currentConfig: {
           ...state.currentConfig,
-          components: [...state.currentConfig.components, action.component],
+          components: [...state.currentConfig.components, constrainedComponent],
           totalPrice:
-            [...state.currentConfig.components, action.component].reduce((sum, c) => sum + c.price, 0) +
+            [...state.currentConfig.components, constrainedComponent].reduce((sum, c) => sum + c.price, 0) +
             newComponentCables.reduce((sum, cable) => sum + cable.totalPrice, 0),
         },
         cableCalculations: newComponentCables,
-        selectedComponentId: action.component.id,
-        selectedComponentIds: [action.component.id],
+        selectedComponentId: constrainedComponent.id,
+        selectedComponentIds: [constrainedComponent.id],
       }
     }
 
@@ -399,9 +424,36 @@ function configuratorReducer(state: ConfiguratorState, action: Action): Configur
         ...state,
         currentConfig: {
           ...state.currentConfig,
-          components: state.currentConfig.components.map((component) =>
-            component.id === action.componentId ? { ...component, ...action.updates } : component,
-          ),
+          components: state.currentConfig.components.map((component) => {
+            if (component.id === action.componentId) {
+              const updatedComponent = { ...component, ...action.updates }
+              
+              // Apply boundary constraints if position or rotation is being updated
+              if (action.updates.position || action.updates.rotation) {
+                const roomDims = state.roomDimensions || { width: 8, length: 6, height: 3 }
+                const constraintResult = boundarySystem.validateAndCorrectPosition(
+                  updatedComponent.type,
+                  updatedComponent.position || [0, 0, 0],
+                  updatedComponent.rotation || [0, 0, 0],
+                  updatedComponent.scale || [1, 1, 1],
+                  roomDims
+                )
+                
+                if (constraintResult.corrected && constraintResult.reason) {
+                  console.log(`Component positioning corrected: ${constraintResult.reason}`)
+                }
+                
+                return {
+                  ...updatedComponent,
+                  position: constraintResult.position,
+                  rotation: constraintResult.rotation
+                }
+              }
+              
+              return updatedComponent
+            }
+            return component
+          }),
         },
       }
 

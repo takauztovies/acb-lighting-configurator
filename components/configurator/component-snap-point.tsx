@@ -53,7 +53,7 @@ export function ComponentSnapPoint({
   }
 
   const color = getSnapPointColor(snapPoint.type)
-  const baseSize = 0.06
+  const baseSize = 0.06  // Increased for better click targeting
   const size = isActive ? baseSize * 1.5 : hovered ? baseSize * 1.2 : baseSize
 
   // Pulse animation for active snap points
@@ -72,7 +72,7 @@ export function ComponentSnapPoint({
   })
 
   // Handle hover state
-  const handlePointerOver = (e: THREE.Event) => {
+  const handlePointerOver = (e: any) => {
     e.stopPropagation()
     setHovered(true)
     document.body.style.cursor = "pointer"
@@ -81,7 +81,7 @@ export function ComponentSnapPoint({
     }
   }
 
-  const handlePointerOut = (e: THREE.Event) => {
+  const handlePointerOut = (e: any) => {
     e.stopPropagation()
     setHovered(false)
     document.body.style.cursor = "default"
@@ -91,7 +91,7 @@ export function ComponentSnapPoint({
   }
 
   // Handle click
-  const handleClick = (e: THREE.Event) => {
+  const handleClick = (e: any) => {
     e.stopPropagation()
     if (onClick) {
       onClick(e)
@@ -107,6 +107,7 @@ export function ComponentSnapPoint({
         onPointerOut={handlePointerOut}
         onClick={handleClick}
         userData={{ snapPointId: snapPoint.id, type: "snapPoint" }}
+        renderOrder={1000} // Ensure snap points render on top
       >
         <sphereGeometry args={[size, 16, 16]} />
         <meshStandardMaterial
@@ -115,6 +116,7 @@ export function ComponentSnapPoint({
           emissiveIntensity={isActive ? 0.6 : hovered ? 0.4 : 0}
           transparent
           opacity={0.8}
+          depthTest={false} // Allow rendering on top
         />
       </mesh>
 
@@ -125,6 +127,7 @@ export function ComponentSnapPoint({
         onPointerOut={handlePointerOut}
         onClick={handleClick}
         userData={{ snapPointId: snapPoint.id, type: "snapPoint" }}
+        renderOrder={999} // Just below the main sphere
       >
         <ringGeometry args={[size * 1.2, size * 1.5, 16]} />
         <meshBasicMaterial
@@ -132,6 +135,7 @@ export function ComponentSnapPoint({
           transparent
           opacity={isActive ? 0.5 : hovered ? 0.3 : 0.2}
           side={THREE.DoubleSide}
+          depthTest={false} // Allow rendering on top
         />
       </mesh>
     </group>

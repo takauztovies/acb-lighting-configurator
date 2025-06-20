@@ -1,10 +1,25 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Slider } from "@/components/ui/slider"
-import { RotateCw, RotateCcw, FlipHorizontal, FlipVertical, RefreshCw, Move3D } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Separator } from "@/components/ui/separator"
+import { 
+  Move3D, 
+  ArrowUp, 
+  ArrowDown, 
+  ArrowLeft, 
+  ArrowRight,
+  RotateCw,
+  RotateCcw,
+  FlipHorizontal,
+  FlipVertical,
+  RefreshCw,
+  ChevronUp,
+  ChevronDown
+} from "lucide-react"
 
 interface TransformControlsProps {
   selectedComponentId: string | null
@@ -17,6 +32,9 @@ interface TransformControlsProps {
     rotation?: [number, number, number]
     scale?: [number, number, number]
     position?: [number, number, number]
+    initialPosition?: [number, number, number]
+    initialRotation?: [number, number, number]
+    initialScale?: [number, number, number]
   }
 }
 
@@ -25,10 +43,18 @@ export function TransformControls({
   onTransform, 
   currentTransform 
 }: TransformControlsProps) {
-  const [rotationX, setRotationX] = useState(currentTransform?.rotation?.[0] ?? 0)
-  const [rotationY, setRotationY] = useState(currentTransform?.rotation?.[1] ?? 0)
-  const [rotationZ, setRotationZ] = useState(currentTransform?.rotation?.[2] ?? 0)
-  const [scale, setScale] = useState(1)
+  const [position, setPosition] = useState<[number, number, number]>([0, 0, 0])
+  const [rotation, setRotation] = useState<[number, number, number]>([0, 0, 0])
+  const [scale, setScale] = useState<[number, number, number]>([1, 1, 1])
+
+  // Update local state when currentTransform changes
+  useEffect(() => {
+    if (currentTransform) {
+      setPosition(currentTransform.position || [0, 0, 0])
+      setRotation(currentTransform.rotation || [0, 0, 0])
+      setScale(currentTransform.scale || [1, 1, 1])
+    }
+  }, [currentTransform])
 
   if (!selectedComponentId) {
     return (
@@ -46,59 +72,98 @@ export function TransformControls({
     )
   }
 
-  const handleRotationChange = (axis: 'x' | 'y' | 'z', value: number) => {
-    const newRotation: [number, number, number] = [rotationX, rotationY, rotationZ]
-    const radians = (value * Math.PI) / 180 // Convert degrees to radians
+  // Movement functions
+  const moveComponent = (direction: 'left' | 'right' | 'forward' | 'backward' | 'up' | 'down', amount = 0.1) => {
+    const newPosition: [number, number, number] = [...position]
+    
+    switch (direction) {
+      case 'left':
+        newPosition[0] -= amount
+        break
+      case 'right':
+        newPosition[0] += amount
+        break
+      case 'forward':
+        newPosition[2] -= amount
+        break
+      case 'backward':
+        newPosition[2] += amount
+        break
+      case 'up':
+        newPosition[1] += amount
+        break
+      case 'down':
+        newPosition[1] -= amount
+        break
+    }
+    
+    setPosition(newPosition)
+    onTransform(selectedComponentId, { position: newPosition })
+  }
+
+  // Rotation functions
+  const rotateComponent = (axis: 'x' | 'y' | 'z', degrees: number) => {
+    const newRotation: [number, number, number] = [...rotation]
+    const radians = (degrees * Math.PI) / 180
     
     switch (axis) {
       case 'x':
-        newRotation[0] = radians
-        setRotationX(value)
+        newRotation[0] += radians
         break
       case 'y':
-        newRotation[1] = radians
-        setRotationY(value)
+        newRotation[1] += radians
         break
       case 'z':
-        newRotation[2] = radians
-        setRotationZ(value)
+        newRotation[2] += radians
         break
     }
     
+    setRotation(newRotation)
     onTransform(selectedComponentId, { rotation: newRotation })
   }
 
-  const handleQuickRotation = (axis: 'x' | 'y' | 'z', degrees: number) => {
-    const currentDegrees = {
-      x: (rotationX * 180) / Math.PI,
-      y: (rotationY * 180) / Math.PI,
-      z: (rotationZ * 180) / Math.PI,
-    }
-    
-    const newDegrees = currentDegrees[axis] + degrees
-    handleRotationChange(axis, newDegrees)
+  // Flip functions (180-degree rotations)
+  const flipComponent = (axis: 'x' | 'y' | 'z') => {
+    rotateComponent(axis, 180)
   }
 
-  const handleFlip = (axis: 'x' | 'y' | 'z') => {
-    const currentDegrees = {
-      x: (rotationX * 180) / Math.PI,
-      y: (rotationY * 180) / Math.PI,
-      z: (rotationZ * 180) / Math.PI,
-    }
+  // Reset function - reset to initial position
+  const resetTransform = () => {
+    // Use initial values from currentTransform if available, otherwise defaults
+    const resetPos: [number, number, number] = currentTransform?.initialPosition || currentTransform?.position || [0, 1, 0]
+    const resetRot: [number, number, number] = currentTransform?.initialRotation || [0, 0, 0]
+    const resetScale: [number, number, number] = currentTransform?.initialScale || [1, 1, 1]
     
-    const newDegrees = currentDegrees[axis] + 180
-    handleRotationChange(axis, newDegrees)
-  }
-
-  const handleReset = () => {
-    setRotationX(0)
-    setRotationY(0)
-    setRotationZ(0)
-    setScale(1)
+    setPosition(resetPos)
+    setRotation(resetRot)
+    setScale(resetScale)
+    
     onTransform(selectedComponentId, { 
-      rotation: [0, 0, 0],
-      scale: [1, 1, 1]
+      position: resetPos,
+      rotation: resetRot,
+      scale: resetScale
     })
+  }
+
+  // Handle direct input changes
+  const handlePositionChange = (axis: number, value: number) => {
+    const newPosition: [number, number, number] = [...position]
+    newPosition[axis] = value
+    setPosition(newPosition)
+    onTransform(selectedComponentId, { position: newPosition })
+  }
+
+  const handleRotationChange = (axis: number, degrees: number) => {
+    const newRotation: [number, number, number] = [...rotation]
+    newRotation[axis] = (degrees * Math.PI) / 180
+    setRotation(newRotation)
+    onTransform(selectedComponentId, { rotation: newRotation })
+  }
+
+  const handleScaleChange = (value: number) => {
+    const newScale: [number, number, number] = [value, value, value]
+    setScale(newScale)
+    onTransform(selectedComponentId, { scale: newScale })
   }
 
   return (
@@ -110,32 +175,156 @@ export function TransformControls({
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* Quick Rotation Buttons */}
+        
+        {/* Movement Controls */}
         <div>
-          <h4 className="text-sm font-medium mb-3">Quick Rotations</h4>
-          <div className="grid grid-cols-2 gap-2">
+          <h4 className="text-sm font-medium mb-3">Movement</h4>
+          
+          {/* Directional buttons */}
+          <div className="grid grid-cols-3 gap-1 mb-3">
+            <div></div>
             <Button
               variant="outline"
               size="sm"
-              onClick={() => handleQuickRotation('y', 90)}
+              onClick={() => moveComponent('forward')}
+              className="h-8"
+            >
+              <ArrowUp className="w-4 h-4" />
+            </Button>
+            <div></div>
+            
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => moveComponent('left')}
+              className="h-8"
+            >
+              <ArrowLeft className="w-4 h-4" />
+            </Button>
+            <div className="flex flex-col gap-1">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => moveComponent('up')}
+                className="h-6 text-xs"
+              >
+                <ChevronUp className="w-3 h-3" />
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => moveComponent('down')}
+                className="h-6 text-xs"
+              >
+                <ChevronDown className="w-3 h-3" />
+              </Button>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => moveComponent('right')}
+              className="h-8"
+            >
+              <ArrowRight className="w-4 h-4" />
+            </Button>
+            
+            <div></div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => moveComponent('backward')}
+              className="h-8"
+            >
+              <ArrowDown className="w-4 h-4" />
+            </Button>
+            <div></div>
+          </div>
+
+          {/* Position inputs */}
+          <div className="grid grid-cols-3 gap-2">
+            <div>
+              <Label className="text-xs">X</Label>
+              <Input
+                type="number"
+                step="0.1"
+                value={position[0].toFixed(1)}
+                onChange={(e) => handlePositionChange(0, parseFloat(e.target.value) || 0)}
+                className="h-8 text-xs"
+              />
+            </div>
+            <div>
+              <Label className="text-xs">Y</Label>
+              <Input
+                type="number"
+                step="0.1"
+                value={position[1].toFixed(1)}
+                onChange={(e) => handlePositionChange(1, parseFloat(e.target.value) || 0)}
+                className="h-8 text-xs"
+              />
+            </div>
+            <div>
+              <Label className="text-xs">Z</Label>
+              <Input
+                type="number"
+                step="0.1"
+                value={position[2].toFixed(1)}
+                onChange={(e) => handlePositionChange(2, parseFloat(e.target.value) || 0)}
+                className="h-8 text-xs"
+              />
+            </div>
+          </div>
+        </div>
+
+        <Separator />
+
+        {/* Rotation Controls */}
+        <div>
+          <h4 className="text-sm font-medium mb-3">Rotation</h4>
+          
+          {/* Quick rotation buttons */}
+          <div className="grid grid-cols-2 gap-2 mb-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => rotateComponent('y', 90)}
               className="flex items-center gap-1"
             >
               <RotateCw className="w-4 h-4" />
-              Rotate 90°
+              90°
             </Button>
             <Button
               variant="outline"
               size="sm"
-              onClick={() => handleQuickRotation('y', -90)}
+              onClick={() => rotateComponent('y', -90)}
               className="flex items-center gap-1"
             >
               <RotateCcw className="w-4 h-4" />
-              Rotate -90°
+              -90°
             </Button>
             <Button
               variant="outline"
               size="sm"
-              onClick={() => handleFlip('y')}
+              onClick={() => rotateComponent('y', 45)}
+              className="text-xs"
+            >
+              45°
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => rotateComponent('y', -45)}
+              className="text-xs"
+            >
+              -45°
+            </Button>
+          </div>
+
+          {/* Flip buttons */}
+          <div className="grid grid-cols-2 gap-2 mb-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => flipComponent('y')}
               className="flex items-center gap-1"
             >
               <FlipHorizontal className="w-4 h-4" />
@@ -144,78 +333,123 @@ export function TransformControls({
             <Button
               variant="outline"
               size="sm"
-              onClick={() => handleFlip('x')}
+              onClick={() => flipComponent('x')}
               className="flex items-center gap-1"
             >
               <FlipVertical className="w-4 h-4" />
               Flip V
             </Button>
           </div>
-        </div>
 
-        {/* Precise Rotation Controls */}
-        <div>
-          <h4 className="text-sm font-medium mb-3">Precise Rotation</h4>
-          <div className="space-y-4">
+          {/* Track orientation toggle */}
+          <div className="grid grid-cols-1 gap-2 mb-3">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                // Toggle between horizontal (0°) and vertical (90°) for tracks
+                const currentY = (rotation[1] * 180) / Math.PI
+                const isHorizontal = Math.abs(currentY % 180) < 45
+                const newRotation: [number, number, number] = [
+                  rotation[0],
+                  isHorizontal ? Math.PI / 2 : 0, // 90° or 0°
+                  rotation[2]
+                ]
+                setRotation(newRotation)
+                onTransform(selectedComponentId, { rotation: newRotation })
+              }}
+              className="flex items-center gap-1"
+            >
+              <RotateCw className="w-4 h-4" />
+              {Math.abs(((rotation[1] * 180) / Math.PI) % 180) < 45 ? 'Make Vertical' : 'Make Horizontal'}
+            </Button>
+          </div>
+
+          {/* Rotation inputs */}
+          <div className="grid grid-cols-3 gap-2">
             <div>
-              <label className="text-xs text-gray-600">X-Axis: {Math.round((rotationX * 180) / Math.PI)}°</label>
-              <Slider
-                value={[(rotationX * 180) / Math.PI]}
-                onValueChange={([value]) => handleRotationChange('x', value)}
-                max={360}
-                min={-360}
-                step={5}
-                className="mt-1"
+              <Label className="text-xs">X-Axis</Label>
+              <Input
+                type="number"
+                step="15"
+                value={Math.round((rotation[0] * 180) / Math.PI)}
+                onChange={(e) => handleRotationChange(0, parseFloat(e.target.value) || 0)}
+                className="h-8 text-xs"
               />
             </div>
             <div>
-              <label className="text-xs text-gray-600">Y-Axis: {Math.round((rotationY * 180) / Math.PI)}°</label>
-              <Slider
-                value={[(rotationY * 180) / Math.PI]}
-                onValueChange={([value]) => handleRotationChange('y', value)}
-                max={360}
-                min={-360}
-                step={5}
-                className="mt-1"
+              <Label className="text-xs">Y-Axis</Label>
+              <Input
+                type="number"
+                step="15"
+                value={Math.round((rotation[1] * 180) / Math.PI)}
+                onChange={(e) => handleRotationChange(1, parseFloat(e.target.value) || 0)}
+                className="h-8 text-xs"
               />
             </div>
             <div>
-              <label className="text-xs text-gray-600">Z-Axis: {Math.round((rotationZ * 180) / Math.PI)}°</label>
-              <Slider
-                value={[(rotationZ * 180) / Math.PI]}
-                onValueChange={([value]) => handleRotationChange('z', value)}
-                max={360}
-                min={-360}
-                step={5}
-                className="mt-1"
+              <Label className="text-xs">Z-Axis</Label>
+              <Input
+                type="number"
+                step="15"
+                value={Math.round((rotation[2] * 180) / Math.PI)}
+                onChange={(e) => handleRotationChange(2, parseFloat(e.target.value) || 0)}
+                className="h-8 text-xs"
               />
             </div>
           </div>
         </div>
+
+        <Separator />
 
         {/* Scale Control */}
         <div>
           <h4 className="text-sm font-medium mb-3">Scale</h4>
-          <div>
-            <label className="text-xs text-gray-600">Size: {scale.toFixed(2)}x</label>
-            <Slider
-              value={[scale]}
-              onValueChange={([value]) => {
-                setScale(value)
-                onTransform(selectedComponentId, { scale: [value, value, value] })
-              }}
-              max={3}
-              min={0.1}
-              step={0.1}
-              className="mt-1"
+          <div className="space-y-2">
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleScaleChange(0.5)}
+                className="flex-1"
+              >
+                50%
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleScaleChange(1)}
+                className="flex-1"
+              >
+                100%
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handleScaleChange(1.5)}
+                className="flex-1"
+              >
+                150%
+              </Button>
+            </div>
+            <Input
+              type="number"
+              step="0.1"
+              min="0.1"
+              max="3"
+              value={scale[0].toFixed(1)}
+              onChange={(e) => handleScaleChange(parseFloat(e.target.value) || 1)}
+              className="h-8 text-xs"
             />
           </div>
         </div>
 
+        <Separator />
+
         {/* Reset Button */}
         <Button
           variant="outline"
-          onClick={handleReset}
+          onClick={resetTransform}
           className="w-full flex items-center gap-2"
         >
           <RefreshCw className="w-4 h-4" />

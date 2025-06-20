@@ -2,11 +2,14 @@
 
 import { Suspense, useRef, useEffect } from "react"
 import { Canvas, useThree } from "@react-three/fiber"
-import { OrbitControls, Html, Environment } from "@react-three/drei"
+import { OrbitControls, Html } from "@react-three/drei"
+import * as THREE from "three"
 import { InteractiveComponent3D } from "./interactive-component-3d"
 import { GridHelper } from "./grid-helper"
 import { SceneBackground3D } from "./scene-background-3d"
 import { RoomEnvironment } from "./room-environment"
+import { useConfigurator } from "./configurator-context"
+import { boundarySystem } from "@/lib/boundary-system"
 
 interface Scene3DProps {
   components: any[]
@@ -88,43 +91,65 @@ function PowerCable3D({
   endPosition: [number, number, number]
   animated?: boolean
 }) {
-  const points: [number, number, number][] = []
-  const start = startPosition
-  const end = endPosition
-
-  // Create a curved cable path
-  const midPoint: [number, number, number] = [
-    (start[0] + end[0]) / 2,
-    Math.min(start[1], end[1]) - 0.3, // Sag in the middle
-    (start[2] + end[2]) / 2,
+  const points = [
+    new THREE.Vector3(...startPosition),
+    new THREE.Vector3(...endPosition),
   ]
-
-  // Add points for the curve
-  for (let i = 0; i <= 20; i++) {
-    const t = i / 20
-    const x = (1 - t) * (1 - t) * start[0] + 2 * (1 - t) * t * midPoint[0] + t * t * end[0]
-    const y = (1 - t) * (1 - t) * start[1] + 2 * (1 - t) * t * midPoint[1] + t * t * end[1]
-    const z = (1 - t) * (1 - t) * start[2] + 2 * (1 - t) * t * midPoint[2] + t * t * end[2]
-    points.push([x, y, z])
-  }
 
   return (
     <group>
-      {points.slice(0, -1).map((point, index) => {
-        const nextPoint = points[index + 1]
-        const direction = [nextPoint[0] - point[0], nextPoint[1] - point[1], nextPoint[2] - point[2]]
-        const length = Math.sqrt(direction[0] ** 2 + direction[1] ** 2 + direction[2] ** 2)
+      <mesh>
+        <tubeGeometry args={[new THREE.CatmullRomCurve3(points), 20, 0.02, 8, false]} />
+        <meshStandardMaterial color="#2563eb" />
+      </mesh>
+    </group>
+  )
+}
 
-        return (
-          <mesh
-            key={index}
-            position={[(point[0] + nextPoint[0]) / 2, (point[1] + nextPoint[1]) / 2, (point[2] + nextPoint[2]) / 2]}
-          >
-            <cylinderGeometry args={[0.01, 0.01, length]} />
-            <meshStandardMaterial color="#1f2937" />
-          </mesh>
-        )
-      })}
+// Enhanced Component with Transform Controls
+function ComponentWithTransform({
+  component,
+  isSelected,
+  isPrimary,
+  showLabels,
+  showSnapPoints,
+  selectedSnapPoint,
+  onComponentClick,
+  onSnapPointClick,
+  roomDimensions,
+  onTransformChange,
+}: {
+  component: any
+  isSelected: boolean
+  isPrimary: boolean
+  showLabels: boolean
+  showSnapPoints: boolean
+  selectedSnapPoint?: { componentId: string; snapPointId: string } | null
+  onComponentClick?: (componentId: string) => void
+  onSnapPointClick?: (componentId: string, snapPointId: string) => void
+  roomDimensions: { width: number; length: number; height: number }
+  onTransformChange?: (componentId: string, position: [number, number, number], rotation: [number, number, number]) => void
+}) {
+  const groupRef = useRef<THREE.Group>(null)
+  const transformRef = useRef<any>(null)
+  const { camera, gl } = useThree()
+
+  return (
+    <group>
+      <group ref={groupRef}>
+        <InteractiveComponent3D
+          component={component}
+          isSelected={isSelected}
+          isPrimary={isPrimary}
+          showLabels={showLabels}
+          showSnapPoints={showSnapPoints}
+          selectedSnapPoint={selectedSnapPoint}
+          onClick={onComponentClick}
+          onSnapPointClick={onSnapPointClick}
+        />
+      </group>
+
+
     </group>
   )
 }
@@ -164,63 +189,76 @@ export function Scene3D({
   socketPosition = null,
   cableCalculations = [],
 }: Scene3DProps) {
-  const canvasRef = useRef<HTMLCanvasElement>(null)
+  const { dispatch } = useConfigurator()
+  const orbitControlsRef = useRef<any>(null)
 
-  // Log components for debugging
-  useEffect(() => {
-    console.log("Scene3D: Rendering with components:", components.length)
-    if (socketPosition) {
-      console.log("Socket position:", socketPosition)
-    }
-  }, [components, socketPosition])
+  // Handle transform changes with boundary checking
+  const handleTransformChange = (componentId: string, position: [number, number, number], rotation: [number, number, number]) => {
+    dispatch({
+      type: "UPDATE_COMPONENT",
+      componentId,
+      updates: { position, rotation }
+    })
+  }
 
   return (
     <div className="w-full h-full">
-      <Canvas ref={canvasRef} shadows camera={{ position: [5, 5, 5], fov: 75 }} gl={{ antialias: true, alpha: false }}>
+      <Canvas
+        shadows
+        camera={{ position: [8, 6, 8], fov: 60 }}
+        gl={{ antialias: true, alpha: true }}
+        style={{ background: "transparent" }}
+      >
         <Suspense
           fallback={
             <Html center>
-              <div className="bg-white p-2 rounded shadow-lg">
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500 mx-auto"></div>
-                <div className="mt-2 text-sm text-gray-600">Loading scene...</div>
+              <div className="flex items-center justify-center p-4">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                <span className="ml-2 text-sm text-gray-600">Loading 3D scene...</span>
               </div>
             </Html>
           }
         >
-          {/* Simple lighting setup matching snap points editor */}
-          <color attach="background" args={["#f5f5f5"]} />
+          {/* Lighting setup */}
           <ambientLight intensity={0.6} />
-          <directionalLight position={[5, 5, 5]} intensity={0.8} />
+          <directionalLight position={[10, 10, 5]} intensity={0.8} castShadow />
           <directionalLight position={[-5, 5, -5]} intensity={0.4} />
+
+          {/* Room environment */}
           <RoomEnvironment />
 
-          {/* Room setup */}
+          {/* Scene background */}
           <SceneBackground3D />
 
-          {/* Grid */}
+          {/* Grid helper */}
           {gridVisible && (
             <GridHelper
               visible={gridVisible}
               size={Math.max(roomDimensions.width, roomDimensions.length)}
-              divisions={Math.max(roomDimensions.width, roomDimensions.length) * 2}
             />
           )}
 
-          {/* Components */}
-          {components.map((component) => (
-            <InteractiveComponent3D
-              key={component.id}
-              component={component}
-              isSelected={selectedComponentIds.includes(component.id)}
-              isPrimary={selectedComponentIds[0] === component.id}
-              isMultiSelected={selectedComponentIds.length > 1 && selectedComponentIds.includes(component.id)}
-              showLabels={showLabels}
-              showSnapPoints={showSnapPoints}
-              selectedSnapPoint={selectedSnapPoint}
-              onClick={onComponentClick}
-              onSnapPointClick={onSnapPointClick}
-            />
-          ))}
+          {/* Components with transform controls */}
+          {components.map((component) => {
+            const isSelected = selectedComponentIds.includes(component.id)
+            const isPrimary = selectedComponentIds.length === 1 && isSelected
+
+            return (
+              <ComponentWithTransform
+                key={component.id}
+                component={component}
+                isSelected={isSelected}
+                isPrimary={isPrimary}
+                showLabels={showLabels}
+                showSnapPoints={showSnapPoints}
+                selectedSnapPoint={selectedSnapPoint}
+                onComponentClick={onComponentClick}
+                onSnapPointClick={onSnapPointClick}
+                roomDimensions={roomDimensions}
+                onTransformChange={handleTransformChange}
+              />
+            )
+          })}
 
           {/* Socket indicator */}
           {socketPosition && (
@@ -255,6 +293,7 @@ export function Scene3D({
 
           {/* Camera controls */}
           <OrbitControls
+            ref={orbitControlsRef}
             enableDamping
             dampingFactor={0.05}
             minDistance={1}
@@ -268,5 +307,4 @@ export function Scene3D({
   )
 }
 
-// Add default export
 export default Scene3D

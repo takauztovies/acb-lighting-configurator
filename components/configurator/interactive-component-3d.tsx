@@ -454,6 +454,14 @@ export function InteractiveComponent3D({
                 }}
                 isActive={isSnapPointSelected}
                 onClick={handleSnapPointClick(snapPoint.id)}
+                onPointerOver={(e) => {
+                  e.stopPropagation()
+                  document.body.style.cursor = "pointer"
+                }}
+                onPointerOut={(e) => {
+                  e.stopPropagation()
+                  document.body.style.cursor = "default"
+                }}
               />
             )
           })}

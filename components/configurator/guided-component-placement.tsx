@@ -153,8 +153,8 @@ export function GuidedComponentPlacement({ setupData, onComplete }: GuidedCompon
       // For connectors, rotate 180° around X-axis to point downward
       initialRotation = [Math.PI, 0, 0]
     } else if (componentType === "track") {
-      // For tracks, ensure horizontal alignment
-      initialRotation = [0, 0, 0]
+      // For tracks, default to vertical orientation (90° on Y-axis)
+      initialRotation = [0, Math.PI / 2, 0]
     }
 
     // Apply boundary constraints and smart positioning
@@ -245,12 +245,20 @@ export function GuidedComponentPlacement({ setupData, onComplete }: GuidedCompon
     // Calculate connection position using snap logic
     const { snapLogic } = await import("@/lib/snap-logic")
     
+    // Calculate initial rotation for component type
+    let baseRotation: [number, number, number] = [0, 0, 0]
+    if (componentTemplate.type === "connector") {
+      baseRotation = [Math.PI, 0, 0] // Point downward
+    } else if (componentTemplate.type === "track") {
+      baseRotation = [0, Math.PI / 2, 0] // Vertical by default
+    }
+    
     const connectionData = snapLogic.calculateConnectionPosition(
       sourceComponent,
       sourceSnapPoint,
       { 
         position: [0, 0, 0], 
-        rotation: [0, 0, 0], 
+        rotation: baseRotation, 
         scale: [1, 1, 1],
         snapPoints: componentTemplate.snapPoints || []
       } as any,
@@ -266,6 +274,16 @@ export function GuidedComponentPlacement({ setupData, onComplete }: GuidedCompon
       componentScale = [0.5, 0.5, 0.5] // 50% scale for end caps
     }
 
+    // Apply boundary constraints to prevent going through walls/ceiling
+    const roomDims = state.roomDimensions || { width: 8, length: 6, height: 3 }
+    const constraintResult = boundarySystem.validateAndCorrectPosition(
+      componentTemplate.type,
+      connectionData.position,
+      connectionData.rotation,
+      componentScale,
+      roomDims
+    )
+
     // Create new component with calculated position and rotation
     const newComponent: Component = {
       id: `${componentTemplate.type}-${Date.now()}`,
@@ -273,15 +291,15 @@ export function GuidedComponentPlacement({ setupData, onComplete }: GuidedCompon
       type: componentTemplate.type,
       model3d: componentTemplate.model3d,
       image: componentTemplate.image,
-      position: connectionData.position,
-      rotation: connectionData.rotation,
+      position: constraintResult.position,
+      rotation: constraintResult.rotation,
       scale: componentScale,
       connections: [sourceComponent.id], // Track connection
       snapPoints: componentTemplate.snapPoints || [],
       price: componentTemplate.price || 0,
       properties: componentTemplate.specifications || {},
-      initialPosition: connectionData.position, // Store initial position for reset
-      initialRotation: connectionData.rotation,
+      initialPosition: constraintResult.position, // Store initial position for reset
+      initialRotation: constraintResult.rotation,
       initialScale: componentScale
     }
 
@@ -300,8 +318,9 @@ export function GuidedComponentPlacement({ setupData, onComplete }: GuidedCompon
       target: newComponent.name,
       sourceSnapPoint: sourceSnapPoint.name,
       targetSnapPoint: targetSnapPoint.name,
-      position: connectionData.position,
-      rotation: connectionData.rotation
+      position: constraintResult.position,
+      rotation: constraintResult.rotation,
+      constraintApplied: constraintResult.corrected
     })
   }
 

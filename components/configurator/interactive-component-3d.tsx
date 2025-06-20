@@ -376,6 +376,18 @@ export function InteractiveComponent3D({
 
   return (
     <group ref={meshRef} position={[posX, posY, posZ]} rotation={[rotX, rotY, rotZ]} scale={[scaleX, scaleY, scaleZ]}>
+      {/* Invisible collision box for easier component selection */}
+      <mesh
+        visible={false}
+        onPointerOver={handlePointerOver}
+        onPointerOut={handlePointerOut}
+        onClick={handleClick}
+        userData={{ componentId: component.id, type: "component" }}
+      >
+        <boxGeometry args={[2, 1, 1]} />
+        <meshBasicMaterial transparent opacity={0} />
+      </mesh>
+
       {/* Render loaded 3D model or fallback geometry */}
       {loadedModel ? (
         <primitive
@@ -383,12 +395,17 @@ export function InteractiveComponent3D({
           onPointerOver={handlePointerOver}
           onPointerOut={handlePointerOut}
           onClick={handleClick}
-          userData={{ componentId: component.id }}
+          userData={{ componentId: component.id, type: "component" }}
         />
       ) : modelLoadError ? (
         // Show a red box and error text if model fails to load
         <group>
-          <mesh>
+          <mesh
+            onPointerOver={handlePointerOver}
+            onPointerOut={handlePointerOut}
+            onClick={handleClick}
+            userData={{ componentId: component.id, type: "component" }}
+          >
             <boxGeometry args={[0.5, 0.5, 0.5]} />
             <meshStandardMaterial color="#ff3333" />
           </mesh>
@@ -407,14 +424,14 @@ export function InteractiveComponent3D({
           onPointerOver={handlePointerOver}
           onPointerOut={handlePointerOut}
           onClick={handleClick}
-          userData={{ componentId: component.id }}
+          userData={{ componentId: component.id, type: "component" }}
         />
       ) : isLoadingModel ? (
         <mesh
           onPointerOver={handlePointerOver}
           onPointerOut={handlePointerOut}
           onClick={handleClick}
-          userData={{ componentId: component.id }}
+          userData={{ componentId: component.id, type: "component" }}
         >
           <boxGeometry args={[0.5, 0.5, 0.5]} />
           <meshBasicMaterial color="#cccccc" transparent opacity={0.5} />
@@ -424,7 +441,7 @@ export function InteractiveComponent3D({
           onPointerOver={handlePointerOver}
           onPointerOut={handlePointerOut}
           onClick={handleClick}
-          userData={{ componentId: component.id }}
+          userData={{ componentId: component.id, type: "component" }}
         >
           <boxGeometry args={[0.5, 0.5, 0.5]} />
           <meshStandardMaterial color={isSelected ? "#3b82f6" : hovered ? "#60a5fa" : "#999999"} />

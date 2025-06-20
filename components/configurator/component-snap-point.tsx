@@ -53,7 +53,7 @@ export function ComponentSnapPoint({
   }
 
   const color = getSnapPointColor(snapPoint.type)
-  const baseSize = 0.06  // Increased for better click targeting
+  const baseSize = 0.08  // Larger for better visibility and clicking
   const size = isActive ? baseSize * 1.5 : hovered ? baseSize * 1.2 : baseSize
 
   // Pulse animation for active snap points
@@ -116,7 +116,7 @@ export function ComponentSnapPoint({
           emissiveIntensity={isActive ? 0.6 : hovered ? 0.4 : 0}
           transparent
           opacity={0.8}
-          depthTest={false} // Allow rendering on top
+          depthTest={true} // Enable proper depth testing for better component interaction
         />
       </mesh>
 
@@ -135,7 +135,7 @@ export function ComponentSnapPoint({
           transparent
           opacity={isActive ? 0.5 : hovered ? 0.3 : 0.2}
           side={THREE.DoubleSide}
-          depthTest={false} // Allow rendering on top
+          depthTest={true} // Enable proper depth testing for better component interaction
         />
       </mesh>
     </group>

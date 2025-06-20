@@ -176,7 +176,7 @@ export function Scene3D({
 
   return (
     <div className="w-full h-full">
-      <Canvas ref={canvasRef} shadows camera={{ position: [5, 5, 5], fov: 50 }} gl={{ antialias: true, alpha: false }}>
+      <Canvas ref={canvasRef} shadows camera={{ position: [5, 5, 5], fov: 75 }} gl={{ antialias: true, alpha: false }}>
         <Suspense
           fallback={
             <Html center>
@@ -187,12 +187,12 @@ export function Scene3D({
             </Html>
           }
         >
-          {/* Environment and lighting */}
+          {/* Simple lighting setup matching snap points editor */}
           <color attach="background" args={["#f5f5f5"]} />
           <ambientLight intensity={0.6} />
-          <directionalLight position={[10, 10, 10]} intensity={0.8} castShadow />
+          <directionalLight position={[5, 5, 5]} intensity={0.8} />
+          <directionalLight position={[-5, 5, -5]} intensity={0.4} />
           <RoomEnvironment />
-          <Environment preset="apartment" />
 
           {/* Room setup */}
           <SceneBackground3D />

@@ -15,6 +15,7 @@ import { PresetSelector } from "./preset-selector"
 import { RoomDimensionsControl } from "./room-dimensions-control"
 import { CableCalculator } from "./cable-calculator"
 import { ComponentTileGrid, ComponentTile } from "./ComponentTileGrid"
+import { TransformControls } from "./transform-controls"
 
 // Extended LightComponent to include bundle data
 interface ExtendedLightComponent extends LightComponent {
@@ -57,6 +58,7 @@ export function ConfiguratorSidebar() {
           },
           position: [0, 0, 0] as [number, number, number],
           rotation: [0, 0, 0] as [number, number, number],
+          scale: [1, 1, 1] as [number, number, number],
           connections: [],
           connectionPoints: [],
           bundleData: bundle,
@@ -193,12 +195,13 @@ export function ConfiguratorSidebar() {
         const [activeTab, setActiveTab] = useState("components")
         return (
           <>
-            <div className="grid w-full grid-cols-5 h-10 mb-2">
-              <button className={`text-xs px-2 ${activeTab === "components" ? "font-bold border-b-2 border-black" : ""}`} onClick={() => setActiveTab("components")}>{t("components")}</button>
-              <button className={`text-xs px-2 ${activeTab === "room" ? "font-bold border-b-2 border-black" : ""}`} onClick={() => setActiveTab("room")}>Room</button>
-              <button className={`text-xs px-2 ${activeTab === "presets" ? "font-bold border-b-2 border-black" : ""}`} onClick={() => setActiveTab("presets")}>{t("presets")}</button>
-              <button className={`text-xs px-2 ${activeTab === "cables" ? "font-bold border-b-2 border-black" : ""}`} onClick={() => setActiveTab("cables")}>Cables</button>
-              <button className={`text-xs px-2 ${activeTab === "scene" ? "font-bold border-b-2 border-black" : ""}`} onClick={() => setActiveTab("scene")}>{t("scene")}</button>
+            <div className="grid w-full grid-cols-6 h-10 mb-2">
+              <button className={`text-xs px-1 ${activeTab === "components" ? "font-bold border-b-2 border-black" : ""}`} onClick={() => setActiveTab("components")}>{t("components")}</button>
+              <button className={`text-xs px-1 ${activeTab === "room" ? "font-bold border-b-2 border-black" : ""}`} onClick={() => setActiveTab("room")}>Room</button>
+              <button className={`text-xs px-1 ${activeTab === "presets" ? "font-bold border-b-2 border-black" : ""}`} onClick={() => setActiveTab("presets")}>{t("presets")}</button>
+              <button className={`text-xs px-1 ${activeTab === "cables" ? "font-bold border-b-2 border-black" : ""}`} onClick={() => setActiveTab("cables")}>Cables</button>
+              <button className={`text-xs px-1 ${activeTab === "transform" ? "font-bold border-b-2 border-black" : ""}`} onClick={() => setActiveTab("transform")}>Transform</button>
+              <button className={`text-xs px-1 ${activeTab === "scene" ? "font-bold border-b-2 border-black" : ""}`} onClick={() => setActiveTab("scene")}>{t("scene")}</button>
             </div>
             {activeTab === "components" && (
               <div className="space-y-4">
@@ -293,6 +296,44 @@ export function ConfiguratorSidebar() {
             {activeTab === "cables" && (
               <div className="space-y-4">
                 <CableCalculator />
+              </div>
+            )}
+            {activeTab === "transform" && (
+              <div className="space-y-4">
+                <TransformControls
+                  selectedComponentId={state.selectedComponentId}
+                  onTransform={(componentId, transform) => {
+                    if (transform.rotation) {
+                      dispatch({ 
+                        type: "UPDATE_COMPONENT", 
+                        componentId, 
+                        updates: { rotation: transform.rotation } 
+                      })
+                    }
+                    if (transform.scale) {
+                      dispatch({ 
+                        type: "UPDATE_COMPONENT", 
+                        componentId, 
+                        updates: { scale: transform.scale } 
+                      })
+                    }
+                    if (transform.position) {
+                      dispatch({ 
+                        type: "UPDATE_COMPONENT", 
+                        componentId, 
+                        updates: { position: transform.position } 
+                      })
+                    }
+                  }}
+                  currentTransform={(() => {
+                    const selectedComp = state.currentConfig.components.find(c => c.id === state.selectedComponentId)
+                    return selectedComp ? {
+                      rotation: selectedComp.rotation,
+                      scale: selectedComp.scale,
+                      position: selectedComp.position
+                    } : undefined
+                  })()}
+                />
               </div>
             )}
             {activeTab === "scene" && (

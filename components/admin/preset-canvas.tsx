@@ -446,11 +446,13 @@ export function PresetCanvas({ components, roomDimensions, initialComponents = [
         )}
 
         {/* Canvas */}
-        <Canvas ref={canvasRef} camera={{ position: [5, 5, 5], fov: 60 }} shadows>
-          <Environment preset="studio" />
-          <ambientLight intensity={0.5} />
-          <pointLight position={[10, 10, 10]} castShadow />
-          <directionalLight position={[5, 5, 5]} intensity={0.5} castShadow />
+        <Canvas ref={canvasRef} camera={{ position: [5, 5, 5], fov: 75 }} shadows>
+          {/* Enhanced lighting setup matching snap points editor */}
+          <Environment preset="city" />
+          <ambientLight intensity={0.6} />
+          <directionalLight position={[5, 5, 5]} intensity={0.8} castShadow />
+          <directionalLight position={[-5, 5, -5]} intensity={0.4} />
+          <hemisphereLight intensity={0.3} />
 
           {/* Room boundaries */}
           <RoomBoundaries dimensions={roomDimensions} />
@@ -838,8 +840,9 @@ function EnhancedCanvasComponent3D({
           if (child instanceof THREE.Mesh) {
             child.material = new THREE.MeshStandardMaterial({
               color: getComponentColor(safeComponentData.type),
-              metalness: 0.3,
-              roughness: 0.7,
+              metalness: 0.1,
+              roughness: 0.8,
+              side: THREE.DoubleSide, // Better visibility from all angles
             })
             child.castShadow = true
             child.receiveShadow = true

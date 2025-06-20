@@ -13,7 +13,7 @@ import { DatabaseConfig } from "./database-config"
 import { ComponentDetailsView } from "./component-details-view"
 import { Settings, FileSpreadsheet, Package, Plus, Database, ImageIcon, RefreshCw, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { db, type ComponentData } from "@/lib/database"
+import { db, type ComponentData, type BundleData, type PresetData, type InspirationData } from "@/lib/database"
 
 interface AdminPanelProps {
   onClose?: () => void
@@ -21,9 +21,9 @@ interface AdminPanelProps {
 
 export function AdminPanel({ onClose }: AdminPanelProps) {
   const [components, setComponents] = useState<ComponentData[]>([])
-  const [bundles, setBundles] = useState([])
-  const [presets, setPresets] = useState([])
-  const [inspirations, setInspirations] = useState([])
+  const [bundles, setBundles] = useState<BundleData[]>([])
+  const [presets, setPresets] = useState<PresetData[]>([])
+  const [inspirations, setInspirations] = useState<InspirationData[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [editingComponent, setEditingComponent] = useState<ComponentData | null>(null)
   const [activeTab, setActiveTab] = useState("mass-upload")
@@ -62,14 +62,30 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
     }
   }
 
-  const handleComponentSaved = (component: ComponentData) => {
-    if (editingComponent) {
-      setComponents(components.map((c) => (c.id === component.id ? component : c)))
-      setEditingComponent(null)
-    } else {
-      setComponents([...components, component])
+  const handleComponentSaved = async (data: Partial<ComponentData>) => {
+    try {
+      let savedComponent: ComponentData;
+      if (editingComponent && data.id) {
+        // Update existing component
+        savedComponent = { ...editingComponent, ...data } as ComponentData;
+        await db.saveComponent(savedComponent);
+        setComponents(components.map((c) => (c.id === savedComponent.id ? savedComponent : c)));
+        setEditingComponent(null);
+      } else {
+        // Create new component
+        const newComponent: ComponentData = {
+          id: data.id || `component-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          ...data
+        } as ComponentData;
+        await db.saveComponent(newComponent);
+        setComponents([...components, newComponent]);
+      }
+      notifyComponentsUpdated();
+    } catch (error) {
+      console.error('Error saving component:', error);
     }
-    notifyComponentsUpdated()
   }
 
   const handleComponentUpdated = (updatedComponent: ComponentData) => {
@@ -194,7 +210,7 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
           </TabsContent>
 
           <TabsContent value="add-component" className="space-y-4">
-            <ComponentForm onComponentSaved={handleComponentSaved} editingComponent={editingComponent} />
+            <ComponentForm onComponentSaved={handleComponentSaved} editingComponent={editingComponent || undefined} />
             {editingComponent && (
               <Button
                 variant="outline"
@@ -210,32 +226,24 @@ export function AdminPanel({ onClose }: AdminPanelProps) {
 
           <TabsContent value="bundles" className="space-y-4">
             <BundleManager
-              components={components}
               bundles={bundles}
-              onBundleUpdated={(bundle) => {
-                setBundles(bundles.map((b) => (b.id === bundle.id ? bundle : b)))
-              }}
-              onBundleAdded={(bundle) => setBundles([...bundles, bundle])}
+              components={components}
+              onBundleSaved={() => loadData()}
+              onBundleDeleted={() => loadData()}
             />
           </TabsContent>
 
           <TabsContent value="presets" className="space-y-4">
             <PresetManager
-              presets={presets}
-              onPresetUpdated={(preset) => {
-                setPresets(presets.map((p) => (p.id === preset.id ? preset : p)))
-              }}
-              onPresetAdded={(preset) => setPresets([...presets, preset])}
+              components={components}
+              onSave={(preset) => setPresets([...presets, preset])}
+              onDelete={(presetId) => setPresets(presets.filter(p => p.id !== presetId))}
             />
           </TabsContent>
 
           <TabsContent value="inspiration" className="space-y-4">
             <InspirationManager
-              inspirations={inspirations}
-              onInspirationUpdated={(inspiration) => {
-                setInspirations(inspirations.map((i) => (i.id === inspiration.id ? inspiration : i)))
-              }}
-              onInspirationAdded={(inspiration) => setInspirations([...inspirations, inspiration])}
+              onInspirationSaved={() => loadData()}
             />
           </TabsContent>
 

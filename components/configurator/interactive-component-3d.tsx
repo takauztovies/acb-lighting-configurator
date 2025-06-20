@@ -15,6 +15,7 @@ interface InteractiveComponent3DProps {
     type: string
     position?: number[]
     rotation?: number[]
+    scale?: number[]
     model3d?: string
     snapPoints?: {
       id: string
@@ -69,6 +70,16 @@ export function InteractiveComponent3D({
   const rotX = component.rotation?.[0] ?? 0
   const rotY = component.rotation?.[1] ?? 0
   const rotZ = component.rotation?.[2] ?? 0
+
+  // Debug positioning to ensure components aren't above ceiling
+  if (posY > 2.8) {
+    console.warn('⚠️ Component positioned above reasonable ceiling height:', {
+      componentId: component.id,
+      componentName: component.name,
+      position: [posX, posY, posZ],
+      type: component.type
+    })
+  }
 
   // Resolve model URL if it's a database reference
   const resolveModelUrl = useCallback(async () => {
@@ -157,12 +168,19 @@ export function InteractiveComponent3D({
 
     const loader = new OBJLoader()
     
-    // Create default material
+    // Create default material with enhanced properties matching snap editor
     const defaultMaterial = new THREE.MeshStandardMaterial({
-      color: 0xcccccc,
-      metalness: 0.3,
-      roughness: 0.7,
+      color: 0x888888,
+      metalness: 0.1,
+      roughness: 0.8,
       side: THREE.DoubleSide
+    });
+
+    console.log('🎨 Using enhanced material properties for component:', component.id, {
+      metalness: 0.1,
+      roughness: 0.8,
+      side: 'DoubleSide',
+      lighting: 'Enhanced with city environment'
     });
 
     try {
@@ -177,31 +195,50 @@ export function InteractiveComponent3D({
             scale: object.scale
           });
 
-          // Apply materials and center geometries
+          // Apply materials EXACTLY like snap editor - preserve original materials and geometry
           object.traverse((child) => {
             if ((child as THREE.Mesh).isMesh) {
               const mesh = child as THREE.Mesh
-              mesh.material = defaultMaterial.clone()
-              mesh.geometry.center()
+              mesh.visible = true
+              mesh.castShadow = true
+              mesh.receiveShadow = true
+              
+              // EXACTLY like snap editor - only modify side and visibility, preserve everything else
+              if (mesh.material) {
+                if (Array.isArray(mesh.material)) {
+                  mesh.material.forEach((mat) => {
+                    mat.side = THREE.DoubleSide
+                    mat.visible = true
+                    // DO NOT modify colors, metalness, roughness - preserve original material
+                  })
+                } else {
+                  mesh.material.side = THREE.DoubleSide
+                  mesh.material.visible = true
+                  // DO NOT modify colors, metalness, roughness - preserve original material
+                }
+              }
+              mesh.updateMatrixWorld(true)
+              // DO NOT center geometry - preserve original geometry positioning like snap editor
             }
           })
 
-          // Scale and center the model
+          // Simple scaling like snap editor - NO aggressive centering or repositioning
           const box = new THREE.Box3().setFromObject(object)
           const size = box.getSize(new THREE.Vector3())
           const center = box.getCenter(new THREE.Vector3())
           
           const maxDim = Math.max(size.x, size.y, size.z)
           if (maxDim > 0) {
-            // Apply base normalization scale and then multiply by component's custom scale factor
-            const normalizeScale = 1 / maxDim
+            // Apply simple scale factor like snap editor
             const customScale = component.specifications?.scale || 1
+            const normalizeScale = 1 / maxDim
             const finalScale = normalizeScale * customScale
             
             object.scale.setScalar(finalScale)
             
-            // Center the model
+            // Simple centering like snap editor - preserve original model positioning
             object.position.sub(center.multiplyScalar(finalScale))
+            object.position.set(0, 0, 0)
             object.updateMatrixWorld(true)
           }
 
@@ -332,8 +369,13 @@ export function InteractiveComponent3D({
   const shouldShowSnapPoints = showSnapPoints || isSelected
   const hasSnapPoints = component.snapPoints && component.snapPoints.length > 0
 
+  // Safe scale with defaults
+  const scaleX = component.scale?.[0] ?? 1
+  const scaleY = component.scale?.[1] ?? 1
+  const scaleZ = component.scale?.[2] ?? 1
+
   return (
-    <group ref={meshRef} position={[posX, posY, posZ]} rotation={[rotX, rotY, rotZ]}>
+    <group ref={meshRef} position={[posX, posY, posZ]} rotation={[rotX, rotY, rotZ]} scale={[scaleX, scaleY, scaleZ]}>
       {/* Render loaded 3D model or fallback geometry */}
       {loadedModel ? (
         <primitive

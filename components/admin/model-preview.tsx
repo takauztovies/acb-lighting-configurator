@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { Canvas } from "@react-three/fiber"
-import { OrbitControls } from "@react-three/drei"
+import { OrbitControls, Environment } from "@react-three/drei"
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js"
 import * as THREE from "three"
 import { Box } from "lucide-react"
@@ -36,16 +36,27 @@ function ModelMesh({ url }: { url: string }) {
             object.scale.setScalar(1 / maxDim)
           }
 
-          // Apply basic material
+          // Apply enhanced materials with better visual properties
           object.traverse((child) => {
             if (child instanceof THREE.Mesh) {
               child.material = new THREE.MeshStandardMaterial({
                 color: 0x888888,
                 metalness: 0.1,
                 roughness: 0.8,
+                side: THREE.DoubleSide, // Better visibility from all angles
               })
+              child.castShadow = true
+              child.receiveShadow = true
             }
           })
+          
+          console.log('🎨 Enhanced ModelPreview loaded with enhanced properties:', {
+            metalness: 0.1,
+            roughness: 0.8,
+            side: 'DoubleSide',
+            lighting: 'City environment with enhanced lighting'
+          });
+          
           setObj(object)
         },
         (xhr) => {
@@ -128,14 +139,29 @@ export function ModelPreview({ modelData, filename, className = "" }: ModelPrevi
 
   return (
     <div className={`bg-gray-50 ${className}`}>
-      <Canvas camera={{ position: [2, 2, 2], fov: 50 }} style={{ width: "100%", height: "100%" }}>
+      <Canvas 
+        camera={{ position: [2, 2, 2], fov: 75 }} 
+        style={{ width: "100%", height: "100%" }}
+        shadows
+      >
+        {/* Enhanced lighting setup matching snap points editor */}
+        <Environment preset="city" />
         <ambientLight intensity={0.6} />
-        <directionalLight position={[10, 10, 5]} intensity={0.8} />
-        <directionalLight position={[-10, -10, -5]} intensity={0.4} />
+        <directionalLight position={[5, 5, 5]} intensity={0.8} castShadow />
+        <directionalLight position={[-5, 5, -5]} intensity={0.4} />
+        <hemisphereLight intensity={0.3} />
 
         {blobUrl && <ModelMesh url={blobUrl} />}
 
-        <OrbitControls enablePan={false} enableZoom={false} autoRotate autoRotateSpeed={2} />
+        {/* Enhanced controls with damping for smoother interaction */}
+        <OrbitControls 
+          enableDamping 
+          dampingFactor={0.05} 
+          enablePan={true} 
+          enableZoom={true} 
+          autoRotate 
+          autoRotateSpeed={1} 
+        />
       </Canvas>
     </div>
   )

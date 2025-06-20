@@ -73,34 +73,67 @@ export function GuidedComponentPlacement({ setupData, onComplete }: GuidedCompon
   const calculateInitialPosition = (componentType: string): [number, number, number] => {
     const room = state.roomDimensions || { width: 8, length: 6, height: 3 }
     
-    // Default position near ceiling
-    let position: [number, number, number] = [0, room.height - 0.1, 0]
+    // Calculate appropriate height based on component type
+    let height = 0;
+    switch (componentType) {
+      case "power-supply":
+        // Power supplies typically mount at mid-height on walls or ceiling
+        height = (setupData?.socketPosition as any)?.wall === "ceiling" ? room.height - 0.1 : 1.5;
+        break;
+      case "track":
+        // Tracks typically hang 0.3-0.5m below ceiling
+        height = room.height - 0.4;
+        break;
+      case "spotlight":
+        // Spotlights attach to tracks or mount at track level
+        height = room.height - 0.4;
+        break;
+      case "connector":
+        // Connectors attach to tracks or other components
+        height = room.height - 0.4;
+        break;
+      default:
+        // Default to reasonable hanging height
+        height = room.height - 0.5;
+    }
+    
+    let position: [number, number, number] = [0, height, 0]
     
     // Adjust position based on component type and setup data
     if (setupData?.mountingWall) {
       switch (setupData.mountingWall) {
         case "left":
-          position = [-room.width / 2 + 0.1, room.height - 0.1, 0]
+          position = [-room.width / 2 + 0.1, height, 0]
           break
         case "right":
-          position = [room.width / 2 - 0.1, room.height - 0.1, 0]
+          position = [room.width / 2 - 0.1, height, 0]
           break
         case "back":
-          position = [0, room.height - 0.1, -room.length / 2 + 0.1]
+          position = [0, height, -room.length / 2 + 0.1]
           break
         case "front":
-          position = [0, room.height - 0.1, room.length / 2 - 0.1]
+          position = [0, height, room.length / 2 - 0.1]
           break
       }
     }
     
-    // Use socket position if available
+    // Use socket position if available, but adjust height appropriately
     if (setupData?.socketPosition) {
-      position = [
-        setupData.socketPosition.x,
-        setupData.socketPosition.y,
-        setupData.socketPosition.z
-      ]
+             if ((setupData.socketPosition as any).wall === "ceiling") {
+        // For ceiling sockets, place components hanging below
+        position = [
+          setupData.socketPosition.x,
+          height, // Use calculated height, not socket height
+          setupData.socketPosition.z
+        ]
+      } else {
+        // For wall sockets, use socket position but adjust for component type
+        position = [
+          setupData.socketPosition.x,
+          componentType === "power-supply" ? setupData.socketPosition.y : height,
+          setupData.socketPosition.z
+        ]
+      }
     }
     
     return position
@@ -145,7 +178,7 @@ export function GuidedComponentPlacement({ setupData, onComplete }: GuidedCompon
   }
 
   // Handle snap point placement (when a snap point is selected)
-  const handleSnapPointPlacement = (component: any) => {
+  const handleSnapPointPlacement = async (componentTemplate: LightComponent) => {
     if (!state.selectedSnapPoint) return
     
     // Find source component and snap point
@@ -156,20 +189,81 @@ export function GuidedComponentPlacement({ setupData, onComplete }: GuidedCompon
       (sp) => sp.id === state.selectedSnapPoint!.snapPointId
     )
     
-    if (!sourceComponent || !sourceSnapPoint) return
-    
-    // Find compatible snap point on target component
-    const targetSnapPoint = component.snapPoints?.find((sp: any) => 
-      sp.type === sourceSnapPoint.type || 
-      (sourceSnapPoint.compatibleTypes || []).includes(sp.type)
-    )
-    
-    if (!targetSnapPoint) {
-      console.warn("No compatible snap point found on target component")
+    if (!sourceComponent || !sourceSnapPoint) {
+      console.warn("Source component or snap point not found")
       return
     }
     
-    dispatch({ type: "PLACE_COMPONENT_AT_SNAP_POINT", component })
+    // Find compatible snap point on target component
+    const targetSnapPoint = componentTemplate.snapPoints?.find((sp: any) => {
+      // Check direct type compatibility
+      if (sp.type === sourceSnapPoint.type) return true
+      // Check compatible types
+      if (sourceSnapPoint.compatibleTypes?.includes(sp.type)) return true
+      if (sp.compatibleTypes?.includes(sourceSnapPoint.type)) return true
+      return false
+    })
+    
+    if (!targetSnapPoint) {
+      console.warn("No compatible snap point found on target component")
+      // Still allow placement but at calculated position
+      handleDirectComponentPlacement(componentTemplate.type, componentTemplate)
+      return
+    }
+    
+    // Calculate connection position using snap logic
+    const { snapLogic } = await import("@/lib/snap-logic")
+    
+    const connectionData = snapLogic.calculateConnectionPosition(
+      sourceComponent,
+      sourceSnapPoint,
+      { 
+        position: [0, 0, 0], 
+        rotation: [0, 0, 0], 
+        scale: [1, 1, 1],
+        snapPoints: componentTemplate.snapPoints || []
+      } as any,
+      targetSnapPoint
+    )
+    
+    // Create new component with calculated position and rotation
+    const newComponent: Component = {
+      id: `${componentTemplate.type}-${Date.now()}`,
+      name: componentTemplate.name,
+      type: componentTemplate.type,
+      model3d: componentTemplate.model3d,
+      image: componentTemplate.image,
+      position: connectionData.position,
+      rotation: connectionData.rotation,
+      scale: [
+        componentTemplate.specifications?.scale || 1,
+        componentTemplate.specifications?.scale || 1,
+        componentTemplate.specifications?.scale || 1
+      ] as [number, number, number],
+      connections: [sourceComponent.id], // Track connection
+      snapPoints: componentTemplate.snapPoints || [],
+      price: componentTemplate.price || 0,
+      properties: componentTemplate.specifications || {}
+    }
+
+    // Add connection to source component as well
+    const updatedSourceComponent = {
+      ...sourceComponent,
+      connections: [...(sourceComponent.connections || []), newComponent.id]
+    }
+
+    dispatch({ type: "ADD_COMPONENT", component: newComponent })
+    dispatch({ type: "UPDATE_COMPONENT", componentId: sourceComponent.id, updates: { connections: updatedSourceComponent.connections } })
+    dispatch({ type: "CLEAR_SELECTED_SNAP_POINT" })
+    
+    console.log("✅ Component connected via snap points:", {
+      source: sourceComponent.name,
+      target: newComponent.name,
+      sourceSnapPoint: sourceSnapPoint.name,
+      targetSnapPoint: targetSnapPoint.name,
+      position: connectionData.position,
+      rotation: connectionData.rotation
+    })
   }
 
   // Handle component selection
@@ -179,7 +273,7 @@ export function GuidedComponentPlacement({ setupData, onComplete }: GuidedCompon
 
     if (state.selectedSnapPoint) {
       // We have a snap point selected - place component there
-      handleSnapPointPlacement(componentTemplate)
+      handleSnapPointPlacement(componentTemplate as LightComponent)
     } else {
       // No snap point selected - place at calculated position
       handleDirectComponentPlacement(componentType, componentTemplate as LightComponent)

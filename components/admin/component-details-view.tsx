@@ -8,12 +8,110 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { ImageIcon, Box, ExternalLink, Eye, Download, Edit, Trash2, RefreshCw, Package } from "lucide-react"
 import type { ComponentData } from "@/lib/database"
+import { ModelPreview } from "./model-preview"
+import { db } from "@/lib/database"
 
 interface ComponentDetailsViewProps {
   components: ComponentData[]
   onEdit?: (component: ComponentData) => void
   onDelete?: (componentId: string) => void
   onRefresh?: () => void
+}
+
+// 3D Model Preview Component for component details
+function Component3DPreview({ component }: { component: ComponentData }) {
+  const [modelData, setModelData] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const loadModel = async () => {
+    if (!component.model3d) return
+
+    setIsLoading(true)
+    setError(null)
+
+    try {
+      if (component.model3d.startsWith("db://")) {
+        const fileId = component.model3d.replace("db://", "")
+        const file = await db.getFile(fileId)
+        if (file && file.data) {
+          setModelData(file.data)
+        } else {
+          setError("Model file not found in database")
+        }
+      } else {
+        // For direct URLs, we need to fetch and convert to data URL
+        const response = await fetch(component.model3d)
+        const blob = await response.blob()
+        const reader = new FileReader()
+        reader.onload = () => setModelData(reader.result as string)
+        reader.readAsDataURL(blob)
+      }
+    } catch (err) {
+      setError("Failed to load 3D model")
+      console.error("Error loading 3D model:", err)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  if (!component.model3d) {
+    return (
+      <div className="w-full h-48 bg-gray-100 rounded border flex items-center justify-center">
+        <div className="text-center text-gray-400">
+          <Box className="w-8 h-8 mx-auto mb-2" />
+          <span className="text-sm">No 3D model</span>
+        </div>
+      </div>
+    )
+  }
+
+  if (!modelData && !isLoading && !error) {
+    return (
+      <div className="w-full h-48 bg-gray-100 rounded border flex items-center justify-center">
+        <Button onClick={loadModel} variant="outline">
+          <Box className="w-4 h-4 mr-2" />
+          Load 3D Preview
+        </Button>
+      </div>
+    )
+  }
+
+  if (isLoading) {
+    return (
+      <div className="w-full h-48 bg-gray-100 rounded border flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-2"></div>
+          <p className="text-sm text-gray-500">Loading 3D model...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="w-full h-48 bg-gray-100 rounded border flex items-center justify-center">
+        <div className="text-center text-red-500">
+          <Box className="w-8 h-8 mx-auto mb-2" />
+          <span className="text-sm">{error}</span>
+          <br />
+          <Button onClick={loadModel} variant="outline" size="sm" className="mt-2">
+            Retry
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="w-full h-48 rounded border overflow-hidden">
+      <ModelPreview
+        modelData={modelData!}
+        filename={component.model3d.split('/').pop() || 'model.obj'}
+        className="w-full h-full"
+      />
+    </div>
+  )
 }
 
 export function ComponentDetailsView({ components, onEdit, onDelete, onRefresh }: ComponentDetailsViewProps) {
@@ -328,6 +426,12 @@ function ComponentDetailView({ component }: { component: ComponentData }) {
             </div>
           </div>
         </div>
+      </div>
+
+      {/* 3D Model Preview */}
+      <div>
+        <h3 className="font-semibold mb-2">3D Model Preview</h3>
+        <Component3DPreview component={component} />
       </div>
 
       {/* Images */}

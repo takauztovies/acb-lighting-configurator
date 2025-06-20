@@ -731,10 +731,7 @@ function RoomBoundaries({ dimensions }: { dimensions: { width: number; length: n
       </mesh>
       <lineSegments>
         <edgesGeometry
-          args={[
-            new THREE.BoxGeometry(dimensions.width, dimensions.height, dimensions.length),
-            new THREE.Vector3(0, dimensions.height / 2, 0),
-          ]}
+          args={[new THREE.BoxGeometry(dimensions.width, dimensions.height, dimensions.length)]}
         />
         <lineBasicMaterial color="#cccccc" />
       </lineSegments>
@@ -776,7 +773,7 @@ function EnhancedCanvasComponent3D({
   showLabel?: boolean
   orbitControlsRef: React.RefObject<any>
 }) {
-  const meshRef = useRef<THREE.Group>(null)
+  const meshRef = useRef<THREE.Group>(null!)
   const transformRef = useRef<any>(null)
   const [hovered, setHovered] = useState(false)
   const [loadedModel, setLoadedModel] = useState<THREE.Group | null>(null)
@@ -950,7 +947,7 @@ function EnhancedCanvasComponent3D({
       {isPrimary && mode === "move" && (
         <TransformControls
           ref={transformRef}
-          object={meshRef}
+          object={meshRef as any}
           mode="translate"
           onMouseDown={() => {
             onTransformStart()
@@ -981,7 +978,7 @@ function EnhancedCanvasComponent3D({
       {isPrimary && mode === "rotate" && (
         <TransformControls
           ref={transformRef}
-          object={meshRef}
+          object={meshRef as any}
           mode="rotate"
           onMouseDown={() => {
             onTransformStart()

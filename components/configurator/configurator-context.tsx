@@ -3,6 +3,7 @@
 import type React from "react"
 import { createContext, useContext, useReducer, useEffect, type ReactNode } from "react"
 import { db, type ComponentData } from "@/lib/database"
+import * as THREE from "three"
 
 // Define types
 export type ComponentType = "track" | "spotlight" | "connector" | "power-supply" | "mounting" | "accessory" | "floor" | "ceiling" | "shade" | "diffuser" | "bulb" | "driver" | "sensor" | "dimmer" | "lamp" | "uplight" | "downlight" | "panel" | "pendant" | "strip" | "wall" | "table"
@@ -111,6 +112,7 @@ export interface SetupData {
   } | null
   socketWall: string
   hangingType: string | null
+  mountingWall?: "left" | "right" | "front" | "back"
   trackLayout: {
     type: string
     length: number
@@ -650,42 +652,87 @@ function configuratorReducer(state: ConfiguratorState, action: Action): Configur
         pendingComponent: action.component || null,
       }
 
-    case "PLACE_COMPONENT_AT_SNAP_POINT":
-      if (!state.selectedSnapPoint) return state
+    case "PLACE_COMPONENT_AT_SNAP_POINT": {
+      const { componentId, snapPointId } = state.selectedSnapPoint || {}
+      if (!componentId || !snapPointId) return state
 
-      // Find the source component and snap point
-      const sourceComponent = state.currentConfig.components.find((c) => c.id === state.selectedSnapPoint!.componentId)
-      const sourceSnapPoint = sourceComponent?.snapPoints?.find((sp) => sp.id === state.selectedSnapPoint!.snapPointId)
+      const sourceComponent = state.currentConfig.components.find((c) => c.id === componentId)
+      const sourceSnapPoint = sourceComponent?.snapPoints?.find((sp) => sp.id === snapPointId)
+      const targetSnapPoint = action.component.snapPoints?.[0]
 
-      if (!sourceComponent || !sourceSnapPoint) return state
+      if (!sourceComponent || !sourceSnapPoint || !targetSnapPoint) return state
 
-      // Calculate world position of the snap point
-      const worldPosition: [number, number, number] = [
-        sourceComponent.position[0] + sourceSnapPoint.position[0],
-        sourceComponent.position[1] + sourceSnapPoint.position[1],
-        sourceComponent.position[2] + sourceSnapPoint.position[2],
+      // Calculate the final position by combining source component position and snap point offsets
+      const sourcePosition = sourceComponent.position
+      const sourceOffset = sourceSnapPoint.position
+      const targetOffset = targetSnapPoint.position
+
+      // Calculate the final position
+      const position: [number, number, number] = [
+        sourcePosition[0] + sourceOffset[0] - targetOffset[0],
+        sourcePosition[1] + sourceOffset[1] - targetOffset[1],
+        sourcePosition[2] + sourceOffset[2] - targetOffset[2],
       ]
 
-      // Create the new component at the snap point
+      // Calculate the final rotation by combining source component rotation and snap point rotations
+      const sourceRotation = sourceComponent.rotation || [0, 0, 0]
+      const sourceSnapRotation = sourceSnapPoint.rotation || [0, 0, 0]
+      const targetSnapRotation = targetSnapPoint.rotation || [0, 0, 0]
+
+      // For tracks, ensure horizontal alignment by zeroing out X and Z rotations
+      let finalRotation: [number, number, number]
+      if (action.component.type === "track") {
+        finalRotation = [0, sourceRotation[1] + sourceSnapRotation[1] - targetSnapRotation[1], 0]
+      } else {
+        finalRotation = [
+          (sourceRotation[0] + sourceSnapRotation[0] - targetSnapRotation[0]) % (2 * Math.PI),
+          (sourceRotation[1] + sourceSnapRotation[1] - targetSnapRotation[1]) % (2 * Math.PI),
+          (sourceRotation[2] + sourceSnapRotation[2] - targetSnapRotation[2]) % (2 * Math.PI),
+        ]
+      }
+
+      // Create the new component with the calculated position and rotation
       const newComponent: Component = {
         ...action.component,
         id: `${action.component.type}-${Date.now()}`,
-        position: worldPosition,
-        rotation: [0, 0, 0],
-        scale: [1, 1, 1],
+        position,
+        rotation: finalRotation,
+        scale: [
+          action.component.specifications?.scale || 1,
+          action.component.specifications?.scale || 1,
+          action.component.specifications?.scale || 1
+        ] as [number, number, number],
         connections: [],
+        snapPoints: action.component.snapPoints || [],
+        price: action.component.price || 0,
+        properties: action.component.specifications || {}
       }
 
+      // Create a connection between the source and new component
+      const connection: Connection = {
+        id: `connection-${Date.now()}`,
+        sourceId: sourceComponent.id,
+        targetId: newComponent.id,
+        type: sourceSnapPoint.type,
+        properties: {
+          sourceSnapPoint: snapPointId,
+          targetSnapPoint: targetSnapPoint.id,
+        }
+      }
+
+      // Add the new component and connection
       return {
         ...state,
         currentConfig: {
           ...state.currentConfig,
           components: [...state.currentConfig.components, newComponent],
+          connections: [...state.currentConfig.connections, connection]
         },
         selectedSnapPoint: null,
         placementMode: false,
-        pendingComponent: null,
+        pendingComponent: null
       }
+    }
 
     case "SET_SOCKET_POSITION":
       const newCables = calculateAllCables(state.currentConfig.components, action.position, state.cablePricing)

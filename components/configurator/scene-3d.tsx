@@ -88,7 +88,7 @@ function PowerCable3D({
   endPosition: [number, number, number]
   animated?: boolean
 }) {
-  const points = []
+  const points: [number, number, number][] = []
   const start = startPosition
   const end = endPosition
 
@@ -195,19 +195,14 @@ export function Scene3D({
           <Environment preset="apartment" />
 
           {/* Room setup */}
-          <SceneBackground3D
-            width={roomDimensions.width}
-            length={roomDimensions.length}
-            height={roomDimensions.height}
-            imageSettings={sceneImageSettings}
-          />
+          <SceneBackground3D />
 
           {/* Grid */}
           {gridVisible && (
             <GridHelper
+              visible={gridVisible}
               size={Math.max(roomDimensions.width, roomDimensions.length)}
               divisions={Math.max(roomDimensions.width, roomDimensions.length) * 2}
-              height={0.01}
             />
           )}
 

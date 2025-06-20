@@ -22,6 +22,9 @@ interface InteractiveComponent3DProps {
       type?: string
       name?: string
     }[]
+    specifications?: {
+      scale?: number
+    }
   }
   isSelected: boolean
   isPrimary?: boolean
@@ -174,6 +177,15 @@ export function InteractiveComponent3D({
             scale: object.scale
           });
 
+          // Apply materials and center geometries
+          object.traverse((child) => {
+            if ((child as THREE.Mesh).isMesh) {
+              const mesh = child as THREE.Mesh
+              mesh.material = defaultMaterial.clone()
+              mesh.geometry.center()
+            }
+          })
+
           // Scale and center the model
           const box = new THREE.Box3().setFromObject(object)
           const size = box.getSize(new THREE.Vector3())
@@ -181,98 +193,44 @@ export function InteractiveComponent3D({
           
           const maxDim = Math.max(size.x, size.y, size.z)
           if (maxDim > 0) {
-            const scale = 1 / maxDim
-            object.scale.setScalar(scale)
-            object.position.sub(center.multiplyScalar(scale))
+            // Apply base normalization scale and then multiply by component's custom scale factor
+            const normalizeScale = 1 / maxDim
+            const customScale = component.specifications?.scale || 1
+            const finalScale = normalizeScale * customScale
+            
+            object.scale.setScalar(finalScale)
+            
+            // Center the model
+            object.position.sub(center.multiplyScalar(finalScale))
+            object.updateMatrixWorld(true)
           }
 
-          // Apply default material to all meshes if they don't have one
-          object.traverse((child) => {
-            if ((child as THREE.Mesh).isMesh) {
-              const mesh = child as THREE.Mesh;
-              mesh.visible = true;
-              mesh.castShadow = true;
-              mesh.receiveShadow = true;
-              
-              // If material is missing or invalid, apply default material
-              if (!mesh.material || (Array.isArray(mesh.material) && mesh.material.length === 0)) {
-                console.log('Applying default material to mesh:', mesh.name);
-                mesh.material = defaultMaterial;
-              } else {
-                // Ensure existing materials are properly configured
-                if (Array.isArray(mesh.material)) {
-                  mesh.material = mesh.material.map(mat => 
-                    mat.isMaterial ? mat : defaultMaterial.clone()
-                  );
-                  mesh.material.forEach(mat => {
-                    mat.side = THREE.DoubleSide;
-                    mat.visible = true;
-                    mat.needsUpdate = true;
-                  });
-                } else {
-                  if (!mesh.material.isMaterial) {
-                    mesh.material = defaultMaterial.clone();
-                  }
-                  mesh.material.side = THREE.DoubleSide;
-                  mesh.material.visible = true;
-                  mesh.material.needsUpdate = true;
-                }
-              }
-            }
-          });
-
-          object.userData.componentId = component.id
+          // Set the loaded model
           setLoadedModel(object)
           setIsLoadingModel(false)
           setModelLoadError(null)
         },
-        (xhr) => {
-          console.log(`Loading model progress: ${(xhr.loaded / xhr.total * 100).toFixed(2)}%`);
+        (xhr: ProgressEvent) => {
+          // Progress callback
+          if (xhr.lengthComputable) {
+            console.log(`Loading model: ${(xhr.loaded / xhr.total * 100)}% loaded`)
+          }
         },
         (err: unknown) => {
-          console.error('Error loading model:', {
-            componentId: component.id,
-            url: modelUrl,
-            error: err instanceof Error ? err.message : 'Unknown error',
-            type: err instanceof ErrorEvent ? err.type : 'unknown'
-          });
-          setLoadedModel(null)
+          const errorMessage = err instanceof Error ? err.message : 'Unknown error'
+          console.error('Error loading model:', err)
+          setModelLoadError(`Failed to load model: ${errorMessage}`)
           setIsLoadingModel(false)
-          setModelLoadError(`Failed to load 3D model: ${err instanceof Error ? err.message : 'Unknown error'}`)
+          setLoadedModel(null)
         }
-      );
-    } catch (error: unknown) {
-      console.error('Exception during model loading:', error);
-      setLoadedModel(null)
+      )
+    } catch (error: any) {
+      console.error('Error in model loading:', error)
+      setModelLoadError(`Error in model loading: ${error.message}`)
       setIsLoadingModel(false)
-      setModelLoadError(`Failed to load 3D model: ${error instanceof Error ? error.message : 'Unknown error'}`)
-
-      if (modelUrl && modelUrl.startsWith("blob:")) {
-        URL.revokeObjectURL(modelUrl)
-      }
+      setLoadedModel(null)
     }
-
-    return () => {
-      if (loadedModel) {
-        loadedModel.traverse((child) => {
-          if ((child as THREE.Mesh).isMesh) {
-            const mesh = child as THREE.Mesh;
-            if (mesh.geometry) mesh.geometry.dispose();
-            if (mesh.material) {
-              if (Array.isArray(mesh.material)) {
-                mesh.material.forEach(mat => mat.dispose());
-              } else {
-                mesh.material.dispose();
-              }
-            }
-          }
-        });
-      }
-      if (modelUrl && modelUrl.startsWith("blob:")) {
-        URL.revokeObjectURL(modelUrl)
-      }
-    }
-  }, [modelUrl, component.id, component.name])
+  }, [modelUrl, component.id, component.specifications?.scale])
 
   // Create fallback geometry if no 3D model is available
   useEffect(() => {

@@ -1,7 +1,33 @@
 import { NextApiRequest, NextApiResponse } from 'next'
 import prisma from '@/lib/prisma'
+import jwt from 'jsonwebtoken'
+import { withCorsAndSecurityHeaders } from '@/lib/cors-middleware'
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+const JWT_SECRET = process.env.JWT_SECRET || 'changeme'
+
+function verifyAdmin(req: NextApiRequest, res: NextApiResponse): boolean {
+  const authHeader = req.headers.authorization
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    res.status(401).json({ error: 'Missing or invalid authorization header' })
+    return false
+  }
+  const token = authHeader.split(' ')[1]
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as { isAdmin?: boolean }
+    if (!decoded.isAdmin) {
+      res.status(403).json({ error: 'Admin access required' })
+      return false
+    }
+    return true
+  } catch {
+    res.status(401).json({ error: 'Invalid or expired token' })
+    return false
+  }
+}
+
+export default withCorsAndSecurityHeaders(async function handler(req: NextApiRequest, res: NextApiResponse) {
+  // Only require admin authentication for write operations
+  if (req.method !== 'GET' && !verifyAdmin(req, res)) return
   try {
     switch (req.method) {
       case 'GET': {
@@ -61,4 +87,4 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     console.error('Inspiration API Error:', error)
     return res.status(500).json({ error: 'Internal Server Error' })
   }
-} 
+}) 

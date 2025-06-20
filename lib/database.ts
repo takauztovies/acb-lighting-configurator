@@ -38,6 +38,7 @@ export interface ComponentData {
     | "downlight"
     | "uplight"
   price: number
+  scale: number
   image?: string
   cardImage?: string
   model3d?: string

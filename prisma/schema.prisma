@@ -20,7 +20,7 @@ model Component {
   model3dUrl  String? // URL or file reference for 3D model
   imageUrl    String? // URL or file reference for thumbnail
   cardImageUrl String? // URL or file reference for detailed view
-  metadata    Json?
+  metadata    String?   // JSON string: Record<string, any>
   snapPoints  SnapPoint[]
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
@@ -42,12 +42,12 @@ model Preset {
   id          String   @id @default(cuid())
   name        String
   description String
-  components  Json     // Array of { componentId, position, rotation }
-  roomDimensions Json  // { width, length, height }
+  components  String   // JSON string: Array of { componentId, position, rotation }
+  roomDimensions String // JSON string: { width, length, height }
   previewImage String?
   photoImage  String?
   category    String?
-  tags        Json?    // Array of strings
+  tags        String?  // JSON string: Array of strings
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
@@ -68,7 +68,7 @@ model Bundle {
   id          String   @id @default(cuid())
   name        String
   description String
-  components  Json     // Array of component IDs
+  components  String   // JSON string: Array of component IDs
   price       Float
   image       String?
   createdAt   DateTime @default(now())
@@ -81,11 +81,11 @@ model Inspiration {
   description String
   image       String
   category    String?
-  tags        Json?    // Array of strings
+  tags        String?  // JSON string: Array of strings
   isActive    Boolean  @default(true)
   sortOrder   Int      @default(0)
   displaySize String?  @default("medium")
-  components  Json?    // Array of component data
+  components  String?  // JSON string: Array of component data
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }

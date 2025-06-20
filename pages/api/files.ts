@@ -3,6 +3,8 @@ import formidable from 'formidable'
 import fs from 'fs'
 import path from 'path'
 import { PrismaClient } from '@prisma/client'
+import jwt from 'jsonwebtoken'
+import { withCorsAndSecurityHeaders } from '@/lib/cors-middleware'
 
 export const config = {
   api: {
@@ -14,7 +16,33 @@ const prisma = new PrismaClient()
 const uploadDir = path.join(process.cwd(), 'public', 'uploads')
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true })
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+const JWT_SECRET = process.env.JWT_SECRET || 'changeme'
+const ALLOWED_EXTENSIONS = ['.png', '.jpg', '.jpeg', '.gif', '.svg', '.obj']
+const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
+
+function verifyAdmin(req: NextApiRequest, res: NextApiResponse): boolean {
+  const authHeader = req.headers.authorization
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    res.status(401).json({ error: 'Missing or invalid authorization header' })
+    return false
+  }
+  const token = authHeader.split(' ')[1]
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as { isAdmin?: boolean }
+    if (!decoded.isAdmin) {
+      res.status(403).json({ error: 'Admin access required' })
+      return false
+    }
+    return true
+  } catch {
+    res.status(401).json({ error: 'Invalid or expired token' })
+    return false
+  }
+}
+
+export default withCorsAndSecurityHeaders(async function handler(req: NextApiRequest, res: NextApiResponse) {
+  if (!verifyAdmin(req, res)) return
+
   if (req.method === 'GET') {
     try {
       console.log('GET /api/files: Fetching all files');
@@ -82,6 +110,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         type: file.mimetype
       });
 
+      // Validate file type and size
+      const ext = path.extname(file.originalFilename || '').toLowerCase();
+      if (!ALLOWED_EXTENSIONS.includes(ext)) {
+        return res.status(400).json({ error: 'Invalid file type' });
+      }
+      if (file.size > MAX_FILE_SIZE) {
+        return res.status(400).json({ error: 'File too large' });
+      }
+
       // Get file details
       const filename = path.basename(file.filepath)
       const publicUrl = `/uploads/${filename}`
@@ -120,4 +157,4 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   return res.status(405).json({ error: 'Method not allowed' })
-} 
+}) 

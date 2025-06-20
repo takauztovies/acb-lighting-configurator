@@ -1,9 +1,33 @@
+// This is a comment to force re-evaluation of types.
 import { NextApiRequest, NextApiResponse } from 'next'
 import prisma from '@/lib/prisma'
-import { Component, SnapPoint, Prisma } from '@prisma/client'
 import formidable from 'formidable'
 import fs from 'fs'
 import path from 'path'
+import jwt from 'jsonwebtoken'
+import { withCorsAndSecurityHeaders } from '@/lib/cors-middleware'
+
+const JWT_SECRET = process.env.JWT_SECRET || 'changeme'
+
+function verifyAdmin(req: NextApiRequest, res: NextApiResponse): boolean {
+  const authHeader = req.headers.authorization
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    res.status(401).json({ error: 'Missing or invalid authorization header' })
+    return false
+  }
+  const token = authHeader.split(' ')[1]
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as { isAdmin?: boolean }
+    if (!decoded.isAdmin) {
+      res.status(403).json({ error: 'Admin access required' })
+      return false
+    }
+    return true
+  } catch {
+    res.status(401).json({ error: 'Invalid or expired token' })
+    return false
+  }
+}
 
 // Configure API to handle file uploads
 export const config = {
@@ -29,7 +53,7 @@ interface ComponentInput {
   model3d?: string
   image?: string
   cardImage?: string
-  specifications?: Record<string, any>
+  specifications?: string
   price?: number
   snapPoints?: SnapPointInput[]
 }
@@ -43,16 +67,19 @@ interface ExtendedComponent {
   model3dUrl: string | null
   imageUrl: string | null
   cardImageUrl: string | null
-  metadata: Prisma.JsonValue | null
-  snapPoints: (SnapPoint & {
-    position: string
-    rotation: string | null
-  })[]
+  metadata: any | null
+  snapPoints: any[]
   createdAt: Date
   updatedAt: Date
 }
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+const ALLOWED_MODEL_EXTENSIONS = ['.obj']
+const MAX_MODEL_FILE_SIZE = 10 * 1024 * 1024 // 10MB
+
+export default withCorsAndSecurityHeaders(async function handler(req: NextApiRequest, res: NextApiResponse) {
+  // Only require admin authentication for write operations
+  if (req.method !== 'GET' && !verifyAdmin(req, res)) return
+  
   try {
     switch (req.method) {
       case 'GET': {
@@ -66,27 +93,26 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         })
         
         // Transform the data to match the expected format
-        const transformedComponents = components.map((component) => {
-          const typedComponent = component as unknown as ExtendedComponent
+        const transformedComponents = components.map((component: any) => {
           return {
-            id: typedComponent.id,
-            name: typedComponent.name,
-            type: typedComponent.type,
-            description: typedComponent.description || '',
-            price: typedComponent.price,
-            image: typedComponent.imageUrl || '/placeholder.svg',
-            cardImage: typedComponent.cardImageUrl || '/placeholder.svg',
-            model3d: typedComponent.model3dUrl || '',
-            specifications: typedComponent.metadata || {},
-            snapPoints: typedComponent.snapPoints.map(sp => ({
+            id: component.id,
+            name: component.name,
+            type: component.type,
+            description: component.description || '',
+            price: component.price,
+            image: component.imageUrl || '/placeholder.svg',
+            cardImage: component.cardImageUrl || '/placeholder.svg',
+            model3d: component.model3dUrl || '',
+            specifications: component.metadata ? JSON.parse(component.metadata) : {},
+            snapPoints: component.snapPoints.map((sp: any) => ({
               id: sp.id,
               name: sp.name,
               type: sp.type,
               position: JSON.parse(sp.position) as [number, number, number],
               rotation: sp.rotation ? JSON.parse(sp.rotation) as [number, number, number] : undefined
             })),
-            createdAt: typedComponent.createdAt,
-            updatedAt: typedComponent.updatedAt
+            createdAt: component.createdAt,
+            updatedAt: component.updatedAt
           }
         })
         
@@ -137,6 +163,15 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               const fieldsObj = fields as Record<string, any>
               fieldsObj.model3d = savedFile.url
             }
+
+            // Validate model3d file type and size
+            const ext = path.extname(file.originalFilename || '').toLowerCase();
+            if (!ALLOWED_MODEL_EXTENSIONS.includes(ext)) {
+              return res.status(400).json({ error: 'Invalid model file type' });
+            }
+            if (file.size > MAX_MODEL_FILE_SIZE) {
+              return res.status(400).json({ error: 'Model file too large' });
+            }
           }
 
           // Parse other fields
@@ -150,7 +185,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               model3dUrl: input.model3d,
               imageUrl: input.image,
               cardImageUrl: input.cardImage,
-              metadata: input.specifications || {},
+              metadata: input.specifications,
               price: Number(input.price) || 0,
               snapPoints: {
                 create: input.snapPoints?.map(sp => ({
@@ -160,7 +195,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                   rotation: sp.rotation ? JSON.stringify(sp.rotation) : null
                 })) || []
               }
-            } as Prisma.ComponentCreateInput,
+            },
             include: {
               snapPoints: true
             }
@@ -197,7 +232,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
               model3dUrl: input.model3d,
               imageUrl: input.image,
               cardImageUrl: input.cardImage,
-              metadata: input.specifications || {},
+              metadata: input.specifications,
               price: Number(input.price) || 0,
               snapPoints: {
                 create: input.snapPoints?.map(sp => ({
@@ -207,7 +242,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                   rotation: sp.rotation ? JSON.stringify(sp.rotation) : null
                 })) || []
               }
-            } as Prisma.ComponentCreateInput,
+            },
             include: {
               snapPoints: true
             }
@@ -255,7 +290,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             model3dUrl: input.model3d,
             imageUrl: input.image,
             cardImageUrl: input.cardImage,
-            metadata: input.specifications || {},
+            metadata: input.specifications,
             price: Number(input.price) || 0,
             snapPoints: {
               deleteMany: {},
@@ -266,7 +301,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
                 rotation: sp.rotation ? JSON.stringify(sp.rotation) : null
               })) || []
             }
-          } as Prisma.ComponentUpdateInput,
+          },
           include: {
             snapPoints: true
           }
@@ -296,4 +331,4 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
     return res.status(500).json({ error: 'Internal Server Error' })
   }
-} 
+}) 

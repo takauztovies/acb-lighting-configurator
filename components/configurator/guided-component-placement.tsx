@@ -1,7 +1,8 @@
 "use client"
 
 import { useState } from "react"
-import { useConfigurator } from "./configurator-context"
+import { useConfigurator, type Component, type LightComponent, type SetupData } from "./configurator-context"
+import { db } from "@/lib/database"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -13,19 +14,8 @@ interface ComponentDimensions {
   depth: number
 }
 
-interface LightComponent {
-  id: string
-  type: string
-  name: string
-  description: string
-  price: number
-  dimensions: ComponentDimensions
-  snapPoints?: any[]
-  // ... other properties
-}
-
 interface GuidedComponentPlacementProps {
-  setupData: any
+  setupData: SetupData
   onComplete: () => void
 }
 
@@ -50,7 +40,7 @@ export function GuidedComponentPlacement({ setupData, onComplete }: GuidedCompon
 
   // Get placement steps based on setup
   const getPlacementSteps = () => {
-    if (setupData.trackLayout.type === "preset" && setupData.trackLayout.preset) {
+    if (setupData.trackLayout?.type === "track") {
       return [
         {
           title: "Place Power Supply",
@@ -75,68 +65,110 @@ export function GuidedComponentPlacement({ setupData, onComplete }: GuidedCompon
 
   // Calculate component rotation based on mounting type and wall
   const calculateRotation = (componentType: string): [number, number, number] => {
-    if (setupData.mountingType === "wall" && setupData.mountingWall) {
+    // Default to upside down for ceiling mounts
+    return [Math.PI, 0, 0]
+  }
+
+  // Calculate initial component position based on setup data and room boundaries
+  const calculateInitialPosition = (componentType: string): [number, number, number] => {
+    const room = state.roomDimensions || { width: 8, length: 6, height: 3 }
+    
+    // Default position near ceiling
+    let position: [number, number, number] = [0, room.height - 0.1, 0]
+    
+    // Adjust position based on component type and setup data
+    if (setupData?.mountingWall) {
       switch (setupData.mountingWall) {
-        case "back":
-          return [0, 0, 0] // Facing forward
-        case "front":
-          return [0, Math.PI, 0] // Facing backward
         case "left":
-          return [0, Math.PI / 2, 0] // Facing right
+          position = [-room.width / 2 + 0.1, room.height - 0.1, 0]
+          break
         case "right":
-          return [0, -Math.PI / 2, 0] // Facing left
-        default:
-          return [0, 0, 0]
+          position = [room.width / 2 - 0.1, room.height - 0.1, 0]
+          break
+        case "back":
+          position = [0, room.height - 0.1, -room.length / 2 + 0.1]
+          break
+        case "front":
+          position = [0, room.height - 0.1, room.length / 2 - 0.1]
+          break
       }
     }
-    return [0, 0, 0] // Default rotation for ceiling mounts
+    
+    // Use socket position if available
+    if (setupData?.socketPosition) {
+      position = [
+        setupData.socketPosition.x,
+        setupData.socketPosition.y,
+        setupData.socketPosition.z
+      ]
+    }
+    
+    return position
   }
 
   // Handle direct component placement (when no snap point is selected)
-  const handleDirectComponentPlacement = (componentType: string) => {
+  const handleDirectComponentPlacement = (componentType: string, componentTemplate: LightComponent) => {
+    // Calculate position near ceiling
     const position = calculateInitialPosition(componentType)
-    const rotation = calculateRotation(componentType)
-    const componentTemplate = availableComponents.find((c) => c.type === componentType)
-    if (!componentTemplate) return
 
-    // If this is the first component and it's a connector, snap to wall using 'Wall/Connector Connection'
-    if (state.currentConfig.components.length === 0 && componentType === "connector") {
-      const wallSnap = componentTemplate.snapPoints?.find(sp => sp.name === "Wall/Connector Connection")
-      if (wallSnap) {
-        // Calculate wall position from setupData
-        const wallPos = calculateWallSnapPosition(setupData, wallSnap.position)
-        const newComponent = {
-          ...componentTemplate,
-          id: `${componentType}-${Date.now()}`,
-          position: wallPos,
-          rotation,
-          scale: [1, 1, 1] as [number, number, number],
-          connections: [],
-          snapPoints: componentTemplate.snapPoints || [],
-          price: componentTemplate.price,
-        }
-        dispatch({ type: "ADD_COMPONENT", component: newComponent })
-        return
-      } else {
-        console.warn("Connector does not have a 'Wall/Connector Connection' snap point.")
-      }
+    // Calculate initial rotation based on component type and placement location
+    let rotation: [number, number, number] = [0, 0, 0]
+    if (componentType === "connector") {
+      // For connectors, rotate 180° around X-axis to point downward
+      rotation = [Math.PI, 0, 0]
+    } else if (componentType === "track") {
+      // For tracks, ensure horizontal alignment
+      rotation = [0, 0, 0]
     }
-    // Fallback: regular placement
-    const newComponent = {
-      ...componentTemplate,
+
+    // Create new component with proper scale
+    const newComponent: Component = {
       id: `${componentType}-${Date.now()}`,
+      name: componentTemplate.name,
+      type: componentTemplate.type,
+      model3d: componentTemplate.model3d,
+      image: componentTemplate.image,
       position,
       rotation,
-      scale: [1, 1, 1] as [number, number, number],
+      scale: [
+        componentTemplate.specifications?.scale || 1,
+        componentTemplate.specifications?.scale || 1,
+        componentTemplate.specifications?.scale || 1
+      ] as [number, number, number],
       connections: [],
       snapPoints: componentTemplate.snapPoints || [],
-      price: componentTemplate.price,
+      price: componentTemplate.price || 0,
+      properties: componentTemplate.specifications || {}
     }
+
     dispatch({ type: "ADD_COMPONENT", component: newComponent })
   }
 
   // Handle snap point placement (when a snap point is selected)
   const handleSnapPointPlacement = (component: any) => {
+    if (!state.selectedSnapPoint) return
+    
+    // Find source component and snap point
+    const sourceComponent = state.currentConfig.components.find(
+      (c) => c.id === state.selectedSnapPoint!.componentId
+    )
+    const sourceSnapPoint = sourceComponent?.snapPoints?.find(
+      (sp) => sp.id === state.selectedSnapPoint!.snapPointId
+    )
+    
+    if (!sourceComponent || !sourceSnapPoint) return
+    
+    // Find compatible snap point on target component
+    const targetSnapPoint = component.snapPoints?.find((sp: any) => 
+      sp.type === sourceSnapPoint.type || 
+      (sourceSnapPoint.compatibleTypes || []).includes(sp.type)
+    )
+    
+    if (!targetSnapPoint) {
+      console.warn("No compatible snap point found on target component")
+      return
+    }
+    
     dispatch({ type: "PLACE_COMPONENT_AT_SNAP_POINT", component })
   }
 
@@ -150,81 +182,8 @@ export function GuidedComponentPlacement({ setupData, onComplete }: GuidedCompon
       handleSnapPointPlacement(componentTemplate)
     } else {
       // No snap point selected - place at calculated position
-      handleDirectComponentPlacement(componentType)
+      handleDirectComponentPlacement(componentType, componentTemplate as LightComponent)
     }
-  }
-
-  // Calculate initial component position based on setup data and room boundaries
-  const calculateInitialPosition = (componentType: string): [number, number, number] => {
-    const roomDimensions = state.roomDimensions || { width: 8, length: 6, height: 3 }
-    
-    // Get component dimensions to adjust positioning
-    const componentTemplate = availableComponents.find(c => c.type === componentType) as LightComponent | undefined
-    const componentHeight = componentTemplate?.dimensions?.height || 0.1 // Default to 10cm if not specified
-    const componentWidth = componentTemplate?.dimensions?.width || 0.1
-    const componentDepth = componentTemplate?.dimensions?.depth || 0.1
-    
-    // For ceiling-mounted components, place them exactly at ceiling height accounting for component height
-    const isCeilingMount = setupData.mountingType === "ceiling" || 
-                          (setupData.hangingType === "track" && componentType === "track") ||
-                          (setupData.hangingType === "linear" && componentType === "linear-light")
-    
-    // For wall-mounted components
-    const isWallMount = setupData.mountingType === "wall"
-    
-    // Calculate effective room dimensions accounting for component size
-    const effectiveWidth = roomDimensions.width - componentWidth
-    const effectiveLength = roomDimensions.length - componentDepth
-    const margin = 0.05 // 5cm margin from walls
-
-    // Set height based on mounting type
-    let mountHeight = 0
-    if (isCeilingMount) {
-      // Place component exactly at ceiling, accounting for component height
-      mountHeight = roomDimensions.height - (componentHeight / 2)
-    } else if (isWallMount) {
-      // Place at specified wall height, accounting for component height
-      mountHeight = setupData.mountingHeight || roomDimensions.height / 2
-    } else {
-      // For pendant lights or other hanging components
-      mountHeight = setupData.hangingHeight || roomDimensions.height * 0.7
-    }
-
-    // Calculate base position
-    let baseX = 0
-    let baseZ = 0
-
-    if (isWallMount && setupData.mountingWall) {
-      // For wall mounting, position exactly against the wall accounting for component depth
-      switch (setupData.mountingWall) {
-        case "left":
-          baseX = -effectiveWidth / 2 + (componentDepth / 2)
-          baseZ = Math.random() * (effectiveLength - 2 * margin) - (effectiveLength / 2 - margin)
-          break
-        case "right":
-          baseX = effectiveWidth / 2 - (componentDepth / 2)
-          baseZ = Math.random() * (effectiveLength - 2 * margin) - (effectiveLength / 2 - margin)
-          break
-        case "back":
-          baseX = Math.random() * (effectiveWidth - 2 * margin) - (effectiveWidth / 2 - margin)
-          baseZ = -effectiveLength / 2 + (componentDepth / 2)
-          break
-        case "front":
-          baseX = Math.random() * (effectiveWidth - 2 * margin) - (effectiveWidth / 2 - margin)
-          baseZ = effectiveLength / 2 - (componentDepth / 2)
-          break
-      }
-    } else {
-      // For ceiling mounts or pendant lights, ensure they stay within bounds
-      baseX = Math.random() * (effectiveWidth - 2 * margin) - (effectiveWidth / 2 - margin)
-      baseZ = Math.random() * (effectiveLength - 2 * margin) - (effectiveLength / 2 - margin)
-    }
-
-    // Ensure final positions are within room bounds
-    baseX = Math.max(-effectiveWidth / 2 + margin, Math.min(effectiveWidth / 2 - margin, baseX))
-    baseZ = Math.max(-effectiveLength / 2 + margin, Math.min(effectiveLength / 2 - margin, baseZ))
-
-    return [baseX, mountHeight, baseZ]
   }
 
   // Get compatible components for the selected snap point
@@ -246,36 +205,45 @@ export function GuidedComponentPlacement({ setupData, onComplete }: GuidedCompon
   // Helper to calculate wall snap position
   function calculateWallSnapPosition(setupData: any, snapOffset: [number, number, number]): [number, number, number] {
     // Use setupData.mountingWall and room dimensions to determine wall position
-    // For now, assume room is centered at (0,0,0)
     const room = state.roomDimensions || { width: 8, length: 6, height: 3 }
     let x = 0, y = 0, z = 0
-    switch (setupData.mountingWall) {
-      case "left":
-        x = -room.width / 2
-        y = setupData.mountingHeight || room.height / 2
-        z = 0
-        break
-      case "right":
-        x = room.width / 2
-        y = setupData.mountingHeight || room.height / 2
-        z = 0
-        break
-      case "back":
-        x = 0
-        y = setupData.mountingHeight || room.height / 2
-        z = -room.length / 2
-        break
-      case "front":
-        x = 0
-        y = setupData.mountingHeight || room.height / 2
-        z = room.length / 2
-        break
-      default:
-        x = 0
-        y = setupData.mountingHeight || room.height / 2
-        z = 0
+
+    // Use socket position from setup data if available
+    if (setupData.socketPosition) {
+      x = setupData.socketPosition.x
+      y = setupData.socketPosition.y
+      z = setupData.socketPosition.z
+    } else {
+      // Fallback to wall-based positioning
+      switch (setupData.mountingWall) {
+        case "left":
+          x = -room.width / 2
+          y = room.height - 0.1 // Place near ceiling
+          z = 0
+          break
+        case "right":
+          x = room.width / 2
+          y = room.height - 0.1 // Place near ceiling
+          z = 0
+          break
+        case "back":
+          x = 0
+          y = room.height - 0.1 // Place near ceiling
+          z = -room.length / 2
+          break
+        case "front":
+          x = 0
+          y = room.height - 0.1 // Place near ceiling
+          z = room.length / 2
+          break
+        default:
+          x = 0
+          y = room.height - 0.1 // Place near ceiling
+          z = 0
+      }
     }
-    // Subtract the snap point offset so the snap aligns with the wall
+
+    // Adjust position based on snap point offset
     return [x - snapOffset[0], y - snapOffset[1], z - snapOffset[2]]
   }
 

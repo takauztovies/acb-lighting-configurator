@@ -85,11 +85,11 @@ export function EnhancedGuidedSetup({ isOpen, onClose, onComplete }: EnhancedGui
   const { dispatch } = useConfigurator()
   const [setupData, setSetupData] = useState<SetupData>({
     roomDimensions: { width: 8, length: 6, height: 3 },
-    socketPosition: { wall: '', description: '', x: 0, y: 0, z: 0 },
-    hangingType: null,
-    hangingHeight: 2.6,
+    socketPosition: { wall: 'ceiling', description: 'Socket on Ceiling', x: 4, y: 3, z: 3 },
+    hangingType: "track",
+    hangingHeight: HANGING_TYPES.track.height,
     trackLayout: {
-      type: "preset",
+      type: "custom",
       preset: null,
       customComponents: [],
     },

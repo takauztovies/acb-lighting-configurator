@@ -195,6 +195,40 @@ export function InteractiveComponent3D({
             scale: object.scale
           });
 
+          // CRITICAL FIX: Sanitize the loaded model to remove any text nodes or invalid objects
+          const sanitizeObject = (obj: THREE.Object3D) => {
+            // Remove any children that aren't valid Three.js objects
+            obj.children = obj.children.filter((child) => {
+              return child instanceof THREE.Object3D && child.type !== 'Text'
+            })
+            
+            // Recursively sanitize children
+            obj.children.forEach(child => sanitizeObject(child))
+            
+            // Remove any user data that might contain text
+            if (obj.userData) {
+              delete obj.userData.text
+              delete obj.userData.name
+              delete obj.userData.mtl
+            }
+          }
+          
+          // Apply sanitization to the loaded object
+          sanitizeObject(object)
+          
+          // Also remove any material names that might contain text references
+          object.traverse((child) => {
+            if (child instanceof THREE.Mesh && child.material) {
+              if (Array.isArray(child.material)) {
+                child.material.forEach(mat => {
+                  if (mat.name) delete mat.name
+                })
+              } else {
+                if (child.material.name) delete child.material.name
+              }
+            }
+          })
+
           // Apply materials EXACTLY like snap editor - preserve original materials and geometry
           object.traverse((child) => {
             if ((child as THREE.Mesh).isMesh) {
@@ -376,27 +410,24 @@ export function InteractiveComponent3D({
 
   return (
     <group ref={meshRef} position={[posX, posY, posZ]} rotation={[rotX, rotY, rotZ]} scale={[scaleX, scaleY, scaleZ]}>
-      {/* Invisible collision box for easier component selection */}
-      <mesh
-        visible={false}
-        onPointerOver={handlePointerOver}
-        onPointerOut={handlePointerOut}
-        onClick={handleClick}
-        userData={{ componentId: component.id, type: "component" }}
-      >
-        <boxGeometry args={[2, 1, 1]} />
-        <meshBasicMaterial transparent opacity={0} />
-      </mesh>
-
       {/* Render loaded 3D model or fallback geometry */}
       {loadedModel ? (
-        <primitive
-          object={loadedModel.clone()}
-          onPointerOver={handlePointerOver}
-          onPointerOut={handlePointerOut}
-          onClick={handleClick}
-          userData={{ componentId: component.id, type: "component" }}
-        />
+        <group>
+          {/* 3D Model with click handling */}
+          <group
+            onPointerOver={handlePointerOver}
+            onPointerOut={handlePointerOut}
+            onClick={handleClick}
+            userData={{ componentId: component.id, type: "component" }}
+          >
+            <primitive object={loadedModel.clone(true)} />
+          </group>
+          {/* CRITICAL FIX: Remove click handlers from invisible collision box so it doesn't block snap points */}
+          <mesh visible={false}>
+            <boxGeometry args={[0.5, 0.5, 0.5]} />  {/* Much smaller collision box */}
+            <meshBasicMaterial transparent opacity={0} />
+          </mesh>
+        </group>
       ) : modelLoadError ? (
         // Show a red box and error text if model fails to load
         <group>
@@ -409,11 +440,11 @@ export function InteractiveComponent3D({
             <boxGeometry args={[0.5, 0.5, 0.5]} />
             <meshStandardMaterial color="#ff3333" />
           </mesh>
-          {/* Error label */}
-          <Html position={[0, 0.4, 0]} center>
-            <div className="bg-red-600 text-white px-2 py-1 rounded text-xs">Model failed to load</div>
-          </Html>
-          {/* TODO: Check connector data in admin if you see this error */}
+          {showLabels && (
+            <Html position={[0, 0.4, 0]} center>
+              <div className="bg-red-600 text-white px-2 py-1 rounded text-xs">Model failed to load</div>
+            </Html>
+          )}
         </group>
       ) : geometry && material ? (
         <mesh

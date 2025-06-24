@@ -64,98 +64,96 @@ export function GuidedComponentPlacement({ setupData, onComplete }: GuidedCompon
   const placementSteps = getPlacementSteps()
   const currentStep = placementSteps[placementStep]
 
-  // Calculate component rotation based on mounting type and wall
-  const calculateRotation = (componentType: string): [number, number, number] => {
-    // Default to upside down for ceiling mounts
-    return [Math.PI, 0, 0]
+  // Calculate component height based on type and room dimensions
+  const calculateComponentHeight = (componentType: string): number => {
+    const room = state.roomDimensions || { width: 8, length: 6, height: 3 }
+    const maxSafeHeight = Math.min(room.height - 1.0, 2)
+    
+    // SIMPLIFIED: All components at the same safe height initially
+    const defaultHeight = 2.0  // Fixed at 2 meters for visibility
+    
+    console.log(`📏 Component height calculation: type=${componentType}, calculated=${defaultHeight}, maxSafe=${maxSafeHeight}, ceiling=${room.height}`)
+    
+    return Math.min(defaultHeight, maxSafeHeight)
   }
 
-  // Calculate initial component position based on setup data and room boundaries
+  // Calculate initial position for component placement
   const calculateInitialPosition = (componentType: string): [number, number, number] => {
     const room = state.roomDimensions || { width: 8, length: 6, height: 3 }
+    const maxSafeHeight = Math.min(room.height - 1.0, 2)
     
-    // Calculate appropriate height based on component type
-    let height = 0;
-    switch (componentType) {
-      case "power-supply":
-        // Power supplies typically mount at mid-height on walls or ceiling
-        height = (setupData?.socketPosition as any)?.wall === "ceiling" ? room.height - 0.1 : 1.5;
-        break;
-      case "track":
-        // Tracks typically hang 0.3-0.5m below ceiling
-        height = room.height - 0.4;
-        break;
-      case "spotlight":
-        // Spotlights attach to tracks or mount at track level
-        height = room.height - 0.4;
-        break;
-      case "connector":
-        // Connectors should be positioned at socket level when connected to socket
-        height = (setupData?.socketPosition as any)?.y || room.height - 0.4;
-        break;
-      default:
-        // Default to reasonable hanging height
-        height = room.height - 0.5;
-    }
+    // SIMPLIFIED POSITIONING: Always place components at center with safe height
+    let position: [number, number, number] = [0, 2.0, 0]  // Center of room, 2m height
     
-    let position: [number, number, number] = [0, height, 0]
-    
-    // Adjust position based on component type and setup data
-    if (setupData?.mountingWall) {
-      switch (setupData.mountingWall) {
-        case "left":
-          position = [-room.width / 2 + 0.1, height, 0]
-          break
-        case "right":
-          position = [room.width / 2 - 0.1, height, 0]
-          break
-        case "back":
-          position = [0, height, -room.length / 2 + 0.1]
-          break
-        case "front":
-          position = [0, height, room.length / 2 - 0.1]
-          break
-      }
-    }
-    
-    // Use socket position if available, but adjust height appropriately
-    if (setupData?.socketPosition) {
-      if ((setupData.socketPosition as any).wall === "ceiling") {
-        // For ceiling sockets, place components hanging below
-        position = [
-          setupData.socketPosition.x,
-          height, // Use calculated height, not socket height
-          setupData.socketPosition.z
-        ]
-      } else {
-        // For wall sockets, use socket position but adjust for component type
-        position = [
-          setupData.socketPosition.x,
-          componentType === "connector" || componentType === "power-supply" 
-            ? setupData.socketPosition.y 
-            : height,
-          setupData.socketPosition.z
-        ]
-      }
+    // CRITICAL FIX: For the first component (connector), place it at ceiling level near the socket
+    if (componentType === "connector") {
+      // Connectors (Easy Link End Cap) should be positioned at ceiling level
+      const ceilingHeight = Math.min(room.height - 0.2, 2.8) // 20cm below ceiling, max 2.8m
+      position = [
+        setupData?.socketPosition?.x || 0,
+        ceilingHeight,  // At ceiling level as intended
+        setupData?.socketPosition?.z || 0
+      ]
+      console.log(`📍 CONNECTOR POSITIONED AT CEILING:`, position, { ceilingHeight, socketPosition: setupData?.socketPosition })
+    } else {
+      // All other components at center with safe height  
+      position = [0, 2.0, 0]
+      console.log(`📍 COMPONENT POSITIONED AT CENTER:`, position)
     }
     
     return position
   }
 
   // Handle direct component placement (when no snap point is selected)
-  const handleDirectComponentPlacement = (componentType: string, componentTemplate: LightComponent) => {
-    // Calculate position near ceiling
+  const handleDirectComponentPlacement = async (componentType: string, componentTemplate: LightComponent) => {
+    console.log(`📍 DIRECT COMPONENT PLACEMENT - ULTRA DEBUG START:`, {
+      componentType,
+      componentName: componentTemplate.name,
+      setupData: setupData,
+      roomDimensions: state.roomDimensions,
+      socketPosition: setupData?.socketPosition
+    })
+    
+    // Import boundary system
+    const { boundarySystem } = await import("@/lib/boundary-system")
+    
+    // Calculate position well below ceiling
     const initialPosition = calculateInitialPosition(componentType)
+    console.log(`📍 CALCULATED INITIAL POSITION:`, {
+      componentType,
+      initialPosition,
+      setupData: {
+        socketPosition: setupData?.socketPosition,
+        mountingWall: setupData?.mountingWall,
+        hangingType: setupData?.hangingType
+      }
+    })
 
     // Calculate initial rotation based on component type and placement location
     let initialRotation: [number, number, number] = [0, 0, 0]
     if (componentType === "connector") {
-      // For connectors, rotate 180° around X-axis to point downward
-      initialRotation = [Math.PI, 0, 0]
+      // ULTRA DEBUG: Try natural orientation first - maybe the model is already correctly oriented
+      initialRotation = [0, 0, 0]  // NO ROTATION - try natural orientation
+      console.log(`🔄 CONNECTOR ROTATION SET TO NATURAL:`, initialRotation)
     } else if (componentType === "track") {
-      // For tracks, default to vertical orientation (90° on Y-axis)
-      initialRotation = [0, Math.PI / 2, 0]
+      // ULTRA DEBUG: Try different rotation for tracks - maybe they're naturally horizontal
+      initialRotation = [0, 0, 0]  // NO ROTATION - try natural orientation first
+      console.log(`🔄 TRACK ROTATION SET TO NATURAL (TESTING):`, initialRotation)
+    } else if (componentType === "spotlight") {
+      // For pendant lamps, try natural orientation
+      initialRotation = [0, 0, 0]  // Natural orientation for vertical hanging
+      console.log(`🔄 SPOTLIGHT/PENDANT ROTATION SET TO NATURAL:`, initialRotation)
     }
+    
+    console.log(`🎯 ULTRA DEBUG - DIRECT PLACEMENT ROTATION:`, {
+      componentType,
+      initialRotation,
+      degrees: [
+        (initialRotation[0] * 180 / Math.PI).toFixed(1),
+        (initialRotation[1] * 180 / Math.PI).toFixed(1),
+        (initialRotation[2] * 180 / Math.PI).toFixed(1)
+      ]
+    })
 
     // Apply boundary constraints and smart positioning
     const roomDims = state.roomDimensions || { width: 8, length: 6, height: 3 }
@@ -165,9 +163,25 @@ export function GuidedComponentPlacement({ setupData, onComplete }: GuidedCompon
       componentTemplate.specifications?.scale || 1
     ]
     
+    // CRITICAL FIX: Don't force connectors away from ceiling - they SHOULD be at ceiling level
+    let correctedPosition = initialPosition
+    
+    if (componentType === "connector") {
+      // Connectors (Easy Link End Cap) should stay at ceiling level - don't modify position
+      console.log(`🎯 CONNECTOR KEPT AT CEILING LEVEL:`, initialPosition)
+    } else {
+      // For other components, apply height constraints to keep them below ceiling
+      const maxHeight = Math.min(roomDims.height - 1.0, 2.0) // Maximum 2m height, minimum 1m below ceiling
+      
+      if (initialPosition[1] > maxHeight) {
+        correctedPosition = [initialPosition[0], maxHeight, initialPosition[2]]
+        console.log(`🔧 Component forced to safe height: y=${maxHeight} (was ${initialPosition[1]}, ceiling at ${roomDims.height})`)
+      }
+    }
+    
     const constraintResult = boundarySystem.validateAndCorrectPosition(
       componentType,
-      initialPosition,
+      correctedPosition,
       initialRotation,
       scale,
       roomDims
@@ -210,7 +224,24 @@ export function GuidedComponentPlacement({ setupData, onComplete }: GuidedCompon
 
   // Handle snap point placement (when a snap point is selected)
   const handleSnapPointPlacement = async (componentTemplate: LightComponent) => {
-    if (!state.selectedSnapPoint) return
+    console.log(`🔗 SNAP POINT PLACEMENT - ULTRA DEBUG START:`, {
+      hasSelectedSnapPoint: !!state.selectedSnapPoint,
+      selectedSnapPoint: state.selectedSnapPoint,
+      componentTemplate: {
+        id: componentTemplate.id,
+        name: componentTemplate.name,
+        type: componentTemplate.type
+      }
+    })
+    
+    if (!state.selectedSnapPoint) {
+      console.error(`❌ CRITICAL: No selected snap point!`)
+      return
+    }
+    
+    // Import dependencies
+    const { snapLogic } = await import("@/lib/snap-logic")
+    const { boundarySystem } = await import("@/lib/boundary-system")
     
     // Find source component and snap point
     const sourceComponent = state.currentConfig.components.find(
@@ -220,8 +251,29 @@ export function GuidedComponentPlacement({ setupData, onComplete }: GuidedCompon
       (sp) => sp.id === state.selectedSnapPoint!.snapPointId
     )
     
+    console.log(`🔍 SOURCE COMPONENT SEARCH:`, {
+      searchingForComponentId: state.selectedSnapPoint.componentId,
+      availableComponents: state.currentConfig.components.map(c => ({ id: c.id, name: c.name })),
+      foundSourceComponent: !!sourceComponent,
+      sourceComponentData: sourceComponent ? {
+        id: sourceComponent.id,
+        name: sourceComponent.name,
+        snapPointsCount: sourceComponent.snapPoints?.length || 0
+      } : null
+    })
+    
+    console.log(`🔍 SOURCE SNAP POINT SEARCH:`, {
+      searchingForSnapPointId: state.selectedSnapPoint.snapPointId,
+      availableSnapPoints: sourceComponent?.snapPoints?.map(sp => ({ id: sp.id, name: sp.name, type: sp.type })) || [],
+      foundSourceSnapPoint: !!sourceSnapPoint,
+      sourceSnapPointData: sourceSnapPoint
+    })
+    
     if (!sourceComponent || !sourceSnapPoint) {
-      console.warn("Source component or snap point not found")
+      console.error(`❌ CRITICAL: Source component or snap point not found!`, {
+        sourceComponent: !!sourceComponent,
+        sourceSnapPoint: !!sourceSnapPoint
+      })
       return
     }
     
@@ -238,30 +290,56 @@ export function GuidedComponentPlacement({ setupData, onComplete }: GuidedCompon
     if (!targetSnapPoint) {
       console.warn("No compatible snap point found on target component")
       // Still allow placement but at calculated position
-      handleDirectComponentPlacement(componentTemplate.type, componentTemplate)
+      await handleDirectComponentPlacement(componentTemplate.type, componentTemplate)
       return
     }
-    
-    // Calculate connection position using snap logic
-    const { snapLogic } = await import("@/lib/snap-logic")
     
     // Calculate initial rotation for component type
     let baseRotation: [number, number, number] = [0, 0, 0]
     if (componentTemplate.type === "connector") {
-      baseRotation = [Math.PI, 0, 0] // Point downward
+      baseRotation = [0, 0, 0] // ULTRA DEBUG: Try natural orientation
+      console.log(`🔄 SNAP CONNECTOR ROTATION SET TO NATURAL:`, baseRotation)
     } else if (componentTemplate.type === "track") {
-      baseRotation = [0, Math.PI / 2, 0] // Vertical by default
+      baseRotation = [0, 0, 0] // ULTRA DEBUG: Try natural orientation first
+      console.log(`🔄 SNAP TRACK ROTATION SET TO NATURAL (TESTING):`, baseRotation)
+    } else if (componentTemplate.type === "spotlight") {
+      baseRotation = [0, 0, 0] // Natural orientation for vertical hanging
+      console.log(`🔄 SNAP SPOTLIGHT/PENDANT ROTATION SET TO NATURAL:`, baseRotation)
+    }
+    
+    console.log(`🔗 ULTRA DEBUG - SNAP PLACEMENT ROTATION:`, {
+      componentType: componentTemplate.type,
+      baseRotation,
+      degrees: [
+        (baseRotation[0] * 180 / Math.PI).toFixed(1),
+        (baseRotation[1] * 180 / Math.PI).toFixed(1),
+        (baseRotation[2] * 180 / Math.PI).toFixed(1)
+      ]
+    })
+
+    // Create a temporary target component object with all required properties for snap calculation
+    const tempTargetComponent: Component = {
+      id: `temp-${componentTemplate.type}-${Date.now()}`,
+      name: componentTemplate.name,
+      type: componentTemplate.type,
+      model3d: componentTemplate.model3d,
+      image: componentTemplate.image,
+      position: [0, 0, 0], 
+      rotation: baseRotation, 
+      scale: [1, 1, 1],
+      connections: [],
+      snapPoints: componentTemplate.snapPoints || [],
+      price: componentTemplate.price || 0,
+      properties: componentTemplate.specifications || {},
+      initialPosition: [0, 0, 0],
+      initialRotation: baseRotation,
+      initialScale: [1, 1, 1]
     }
     
     const connectionData = snapLogic.calculateConnectionPosition(
       sourceComponent,
       sourceSnapPoint,
-      { 
-        position: [0, 0, 0], 
-        rotation: baseRotation, 
-        scale: [1, 1, 1],
-        snapPoints: componentTemplate.snapPoints || []
-      } as any,
+      tempTargetComponent,
       targetSnapPoint
     )
     
@@ -325,16 +403,27 @@ export function GuidedComponentPlacement({ setupData, onComplete }: GuidedCompon
   }
 
   // Handle component selection
-  const handleComponentSelect = (componentType: string) => {
+  const handleComponentSelect = async (componentType: string) => {
+    console.log(`🎯 COMPONENT TYPE SELECTED for placement:`, {
+      componentType,
+      hasSelectedSnapPoint: !!state.selectedSnapPoint,
+      selectedSnapPoint: state.selectedSnapPoint
+    })
+    
     const componentTemplate = availableComponents.find((c) => c.type === componentType)
-    if (!componentTemplate) return
+    if (!componentTemplate) {
+      console.error(`❌ Component template not found for type: ${componentType}`)
+      return
+    }
 
     if (state.selectedSnapPoint) {
       // We have a snap point selected - place component there
-      handleSnapPointPlacement(componentTemplate as LightComponent)
+      console.log(`🔗 Placing component via snap point attachment`)
+      await handleSnapPointPlacement(componentTemplate as LightComponent)
     } else {
       // No snap point selected - place at calculated position
-      handleDirectComponentPlacement(componentType, componentTemplate as LightComponent)
+      console.log(`📍 Placing component at calculated position`)
+      await handleDirectComponentPlacement(componentType, componentTemplate as LightComponent)
     }
   }
 

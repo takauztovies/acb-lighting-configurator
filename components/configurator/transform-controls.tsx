@@ -106,6 +106,15 @@ export function TransformControls({
     const newRotation: [number, number, number] = [...rotation]
     const radians = (degrees * Math.PI) / 180
     
+    console.log(`🔄 TRANSFORM CONTROLS - ROTATION CHANGE:`, {
+      componentId: selectedComponentId,
+      axis,
+      degrees,
+      radians,
+      oldRotation: rotation,
+      newRotation: newRotation
+    })
+    
     switch (axis) {
       case 'x':
         newRotation[0] += radians
@@ -118,8 +127,12 @@ export function TransformControls({
         break
     }
     
+    console.log(`🔄 FINAL ROTATION AFTER CHANGE:`, newRotation)
+    
     setRotation(newRotation)
     onTransform(selectedComponentId, { rotation: newRotation })
+    
+    console.log(`✅ Transform dispatched for component: ${selectedComponentId}`)
   }
 
   // Flip functions (180-degree rotations)

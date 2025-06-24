@@ -29,6 +29,15 @@ export const snapLogic = {
       return [0, 0, 0]
     }
 
+    console.log(`🌍 WORLD SNAP POINT CALCULATION:`, {
+      componentId: component.id,
+      componentPosition: component.position,
+      componentRotation: component.rotation,
+      componentScale: component.scale,
+      snapPointId: snapPoint.id,
+      snapPointLocalPosition: snapPoint.position
+    })
+
     // Create transformation matrix for the component
     const componentMatrix = new THREE.Matrix4()
     const position = new THREE.Vector3(...(component.position || [0, 0, 0]))
@@ -37,9 +46,18 @@ export const snapLogic = {
     
     componentMatrix.compose(position, new THREE.Quaternion().setFromEuler(rotation), scale)
     
+    console.log(`🔧 TRANSFORMATION MATRIX COMPONENTS:`, {
+      position: [position.x, position.y, position.z],
+      rotation: [rotation.x, rotation.y, rotation.z],
+      scale: [scale.x, scale.y, scale.z]
+    })
+    
     // Transform snap point position
     const snapPointVector = new THREE.Vector3(...snapPoint.position)
+    console.log(`📍 SNAP POINT BEFORE TRANSFORM:`, [snapPointVector.x, snapPointVector.y, snapPointVector.z])
+    
     snapPointVector.applyMatrix4(componentMatrix)
+    console.log(`🌍 SNAP POINT AFTER TRANSFORM:`, [snapPointVector.x, snapPointVector.y, snapPointVector.z])
     
     return [snapPointVector.x, snapPointVector.y, snapPointVector.z]
   },
@@ -89,34 +107,57 @@ export const snapLogic = {
   calculateConnectionPosition: (
     sourceComponent: Component,
     sourceSnapPoint: SnapPoint,
-    targetComponent: Component,
-    targetSnapPoint: SnapPoint
+    targetComponent: Component | null,
+    targetSnapPoint: SnapPoint | null
   ): { position: [number, number, number]; rotation: [number, number, number] } => {
-    // Get world positions of snap points
-    const sourceWorldPos = snapLogic.getWorldSnapPointPosition(sourceComponent, sourceSnapPoint)
-    const targetLocalPos = targetSnapPoint.position
+    console.log(`🔗 SNAP LOGIC - CONNECTION CALCULATION:`, {
+      sourceComponent: sourceComponent.name,
+      sourceSnapPoint: sourceSnapPoint.name,
+      targetComponent: targetComponent?.name || 'Unknown',
+      targetSnapPoint: targetSnapPoint?.name || 'Unknown'
+    })
 
-    // Calculate offset from target component origin to its snap point
-    const targetOffset = new THREE.Vector3(...targetLocalPos)
+    // Safety check for required parameters
+    if (!targetComponent || !targetSnapPoint) {
+      console.warn('Missing target component or snap point, using default position')
+      return {
+        position: [0, 2, 0],
+        rotation: [0, 0, 0]
+      }
+    }
 
-    // Calculate where the target component should be positioned
-    // so that its snap point aligns with the source snap point
-    const targetPosition = new THREE.Vector3(...sourceWorldPos).sub(targetOffset)
-
-    // Calculate rotation alignment
-    const sourceWorldRot = snapLogic.getWorldSnapPointRotation(sourceComponent, sourceSnapPoint)
-    const targetSnapRot = targetSnapPoint.rotation || [0, 0, 0]
+    // CORRECT APPROACH: Calculate where the source component needs to be positioned
+    // so that its snap point aligns with the target snap point
     
-    // For connection, we typically want opposite orientations (one pointing in, one out)
-    const connectionRotation: [number, number, number] = [
-      sourceWorldRot[0] + Math.PI, // Flip X to face opposite direction
-      sourceWorldRot[1],
-      sourceWorldRot[2]
+    // 1. Get the world position of the target snap point (where we want to connect)
+    const targetWorldPosition = snapLogic.getWorldSnapPointPosition(targetComponent, targetSnapPoint)
+    console.log(`🌍 TARGET SNAP POINT WORLD POSITION:`, targetWorldPosition)
+    
+    // 2. Get the local offset of the source snap point within the source component
+    const sourceSnapOffset = sourceSnapPoint.position || [0, 0, 0]
+    console.log(`📍 SOURCE SNAP POINT LOCAL OFFSET:`, sourceSnapOffset)
+    
+    // 3. Calculate where to position the source component so its snap point aligns with target
+    // Formula: sourceComponent.position = targetWorldPosition - sourceSnapOffset
+    const finalPosition: [number, number, number] = [
+      targetWorldPosition[0] - sourceSnapOffset[0],
+      targetWorldPosition[1] - sourceSnapOffset[1], 
+      targetWorldPosition[2] - sourceSnapOffset[2]
     ]
-
+    
+    console.log(`📍 CALCULATED SOURCE COMPONENT POSITION:`, finalPosition)
+    console.log(`✅ This should place source snap point at:`, [
+      finalPosition[0] + sourceSnapOffset[0],
+      finalPosition[1] + sourceSnapOffset[1],
+      finalPosition[2] + sourceSnapOffset[2]
+    ])
+    
+    // Use the existing component rotation as default
+    const defaultRotation: [number, number, number] = sourceComponent.rotation || [0, 0, 0]
+    
     return {
-      position: [targetPosition.x, targetPosition.y, targetPosition.z],
-      rotation: connectionRotation
+      position: finalPosition,
+      rotation: defaultRotation
     }
   },
 

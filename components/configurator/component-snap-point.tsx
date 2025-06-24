@@ -53,8 +53,8 @@ export function ComponentSnapPoint({
   }
 
   const color = getSnapPointColor(snapPoint.type)
-  const baseSize = 0.08  // Larger for better visibility and clicking
-  const size = isActive ? baseSize * 1.5 : hovered ? baseSize * 1.2 : baseSize
+  const baseSize = 0.03  // Minimal size as requested
+  const size = isActive ? baseSize * 2.0 : hovered ? baseSize * 1.5 : baseSize
 
   // Pulse animation for active snap points
   useFrame(({ clock }) => {
@@ -90,52 +90,67 @@ export function ComponentSnapPoint({
     }
   }
 
-  // Handle click
+  // Handle click with ultra debugging
   const handleClick = (e: any) => {
     e.stopPropagation()
+    console.log(`🎯 SNAP POINT CLICKED - ULTRA DEBUG:`, {
+      snapPointId: snapPoint.id,
+      snapPointName: snapPoint.name,
+      snapPointType: snapPoint.type,
+      snapPointPosition: snapPoint.position,
+      isActive,
+      hovered,
+      worldPosition: position,
+      hasOnClick: !!onClick,
+      event: e.type,
+      userData: e.object?.userData
+    })
+    
     if (onClick) {
+      console.log(`📞 CALLING onClick handler for snap point: ${snapPoint.id}`)
       onClick(e)
+      console.log(`✅ Snap point onClick handler completed`)
+    } else {
+      console.error(`❌ CRITICAL: No onClick handler for snap point: ${snapPoint.id}`)
+      console.error(`🔍 This means snap point selection is broken!`)
     }
   }
 
   return (
     <group position={position}>
-      {/* Main snap point sphere */}
+      {/* Main clickable snap point sphere */}
       <mesh
         ref={meshRef}
         onPointerOver={handlePointerOver}
         onPointerOut={handlePointerOut}
         onClick={handleClick}
         userData={{ snapPointId: snapPoint.id, type: "snapPoint" }}
-        renderOrder={1000} // Ensure snap points render on top
+        renderOrder={1000}
       >
-        <sphereGeometry args={[size, 16, 16]} />
+        <sphereGeometry args={[size * 1.5, 16, 16]} />
         <meshStandardMaterial
           color={color}
           emissive={isActive || hovered ? color : "#000000"}
           emissiveIntensity={isActive ? 0.6 : hovered ? 0.4 : 0}
           transparent
-          opacity={0.8}
-          depthTest={true} // Enable proper depth testing for better component interaction
+          opacity={isActive ? 0.9 : hovered ? 0.8 : 0.7}
+          depthTest={false}
         />
       </mesh>
 
       {/* Outer ring for better visibility */}
       <mesh
         ref={ringRef}
-        onPointerOver={handlePointerOver}
-        onPointerOut={handlePointerOut}
-        onClick={handleClick}
+        renderOrder={999}
         userData={{ snapPointId: snapPoint.id, type: "snapPoint" }}
-        renderOrder={999} // Just below the main sphere
       >
-        <ringGeometry args={[size * 1.2, size * 1.5, 16]} />
+        <ringGeometry args={[size * 1.8, size * 2.2, 16]} />
         <meshBasicMaterial
           color={color}
           transparent
           opacity={isActive ? 0.5 : hovered ? 0.3 : 0.2}
           side={THREE.DoubleSide}
-          depthTest={true} // Enable proper depth testing for better component interaction
+          depthTest={false}
         />
       </mesh>
     </group>

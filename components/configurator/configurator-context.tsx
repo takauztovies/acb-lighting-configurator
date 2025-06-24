@@ -358,15 +358,47 @@ function configuratorReducer(state: ConfiguratorState, action: Action): Configur
       }
       console.log("Adding component to configuration:", action.component)
       
-      // Apply boundary constraints to new component
+      // Apply boundary constraints to new component  
       const roomDims = state.roomDimensions || { width: 8, length: 6, height: 3 }
+      
+      // Force safe height for ALL new components - emergency fix
+      const maxSafeHeight = Math.min(roomDims.height - 1.0, 2.0)
+      let safePosition = action.component.position || [0, 0, 0]
+      let originalRotation = action.component.rotation || [0, 0, 0]
+      
+      console.log(`📥 ADD_COMPONENT DEBUG:`, {
+        type: action.component.type,
+        originalPosition: action.component.position,
+        originalRotation: action.component.rotation,
+        name: action.component.name
+      })
+      
+      if (safePosition[1] > maxSafeHeight) {
+        safePosition = [safePosition[0], maxSafeHeight, safePosition[2]]
+        console.log(`🚨 EMERGENCY HEIGHT CORRECTION (ADD): Component ${action.component.id} moved from y=${action.component.position?.[1]} to y=${maxSafeHeight}`)
+      }
+      
+      // 🔥 ABSOLUTE OVERRIDE FOR TRACKS - FORCE HORIZONTAL ROTATION
+      if (action.component.type === "track") {
+        originalRotation = [Math.PI/2, 0, 0]  // CRITICAL FIX: Use 90° around X-axis for horizontal tracks
+        console.log(`🔥 TRACK ROTATION ABSOLUTE OVERRIDE: FORCED TO [${Math.PI/2}, 0, 0] (was [${action.component.rotation?.[0]}, ${action.component.rotation?.[1]}, ${action.component.rotation?.[2]}])`)
+      }
+      
       const constraintResult = boundarySystem.validateAndCorrectPosition(
         action.component.type,
-        action.component.position || [0, 0, 0],
-        action.component.rotation || [0, 0, 0],
+        safePosition,
+        originalRotation,
         action.component.scale || [1, 1, 1],
         roomDims
       )
+      
+      console.log(`📤 FINAL ADD_COMPONENT RESULT:`, {
+        type: action.component.type,
+        finalPosition: constraintResult.position,
+        finalRotation: constraintResult.rotation,
+        constraintApplied: constraintResult.corrected,
+        reason: constraintResult.reason
+      })
       
       const constrainedComponent = {
         ...action.component,
@@ -431,22 +463,54 @@ function configuratorReducer(state: ConfiguratorState, action: Action): Configur
               // Apply boundary constraints if position or rotation is being updated
               if (action.updates.position || action.updates.rotation) {
                 const roomDims = state.roomDimensions || { width: 8, length: 6, height: 3 }
-                const constraintResult = boundarySystem.validateAndCorrectPosition(
-                  updatedComponent.type,
-                  updatedComponent.position || [0, 0, 0],
-                  updatedComponent.rotation || [0, 0, 0],
-                  updatedComponent.scale || [1, 1, 1],
-                  roomDims
-                )
                 
-                if (constraintResult.corrected && constraintResult.reason) {
-                  console.log(`Component positioning corrected: ${constraintResult.reason}`)
+                // Force safe height for ALL components - emergency fix
+                const maxSafeHeight = Math.min(roomDims.height - 1.0, 2.0)
+                let safePosition = updatedComponent.position || [0, 0, 0]
+                
+                if (safePosition[1] > maxSafeHeight) {
+                  safePosition = [safePosition[0], maxSafeHeight, safePosition[2]]
+                  console.log(`🚨 EMERGENCY HEIGHT CORRECTION: Component ${component.id} moved from y=${updatedComponent.position?.[1]} to y=${maxSafeHeight}`)
                 }
                 
-                return {
-                  ...updatedComponent,
-                  position: constraintResult.position,
-                  rotation: constraintResult.rotation
+                // Detect if this is a manual transform (rotation change without position change)
+                const isManualTransform = action.updates.rotation && !action.updates.position
+                
+                console.log(`🔍 UPDATE_COMPONENT - Boundary check:`, {
+                  componentId: action.componentId,
+                  hasRotationUpdate: !!action.updates.rotation,
+                  hasPositionUpdate: !!action.updates.position,
+                  isManualTransform,
+                  updateData: action.updates
+                })
+                
+                if (isManualTransform) {
+                  // For manual rotation changes, only apply position constraints
+                  console.log(`🚫 MANUAL ROTATION DETECTED - Preserving rotation for ${component.id}`)
+                  return {
+                    ...updatedComponent,
+                    position: safePosition, // Only correct position, not rotation
+                    rotation: action.updates.rotation || [0, 0, 0] // Preserve manual rotation with default
+                  }
+                } else {
+                  // For position changes or initial placement, apply full constraints
+                  const constraintResult = boundarySystem.validateAndCorrectPosition(
+                    updatedComponent.type,
+                    safePosition,
+                    updatedComponent.rotation || [0, 0, 0],
+                    updatedComponent.scale || [1, 1, 1],
+                    roomDims
+                  )
+                  
+                  if (constraintResult.corrected && constraintResult.reason) {
+                    console.log(`Component positioning corrected: ${constraintResult.reason}`)
+                  }
+                  
+                  return {
+                    ...updatedComponent,
+                    position: constraintResult.position,
+                    rotation: constraintResult.rotation
+                  }
                 }
               }
               

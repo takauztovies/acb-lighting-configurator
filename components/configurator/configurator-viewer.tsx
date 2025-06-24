@@ -13,19 +13,28 @@ export function ConfiguratorViewer() {
   // Handle component selection
   const handleComponentClick = useCallback(
     (componentId: string) => {
-      console.log(`Selecting component: ${componentId}`)
+      console.log(`🎯 COMPONENT CLICKED:`, {
+        componentId,
+        currentSelected: state.selectedComponentId
+      })
       dispatch({ type: "SET_SELECTED_COMPONENT", componentId })
+      console.log(`✅ Component selection dispatched`)
     },
-    [dispatch],
+    [dispatch, state.selectedComponentId],
   )
 
   // Handle snap point selection - this starts the placement mode
   const handleSnapPointClick = useCallback(
     (componentId: string, snapPointId: string) => {
-      console.log(`Selected snap point: ${snapPointId} on component ${componentId}`)
+      console.log(`🎯 SNAP POINT CLICKED:`, {
+        componentId,
+        snapPointId,
+        currentSelectedSnapPoint: state.selectedSnapPoint
+      })
       dispatch({ type: "SET_SELECTED_SNAP_POINT", componentId, snapPointId })
+      console.log(`✅ Snap point selection dispatched`)
     },
-    [dispatch],
+    [dispatch, state.selectedSnapPoint],
   )
 
   // Delete selected components
@@ -53,18 +62,70 @@ export function ConfiguratorViewer() {
     dispatch({ type: "TOGGLE_LABELS" })
   }, [dispatch])
 
-  // Handle transform updates from transform controls
-  const handleTransformUpdate = useCallback((componentId: string, transform: {
+  // Handle transform updates from transform controls with boundary checking
+  const handleTransformUpdate = useCallback(async (componentId: string, transform: {
     rotation?: [number, number, number]
     scale?: [number, number, number]
     position?: [number, number, number]
   }) => {
+    console.log(`🎯 MANUAL TRANSFORM UPDATE:`, {
+      componentId,
+      transform,
+      isManualTransform: true
+    })
+
+    // Import boundary system for validation
+    const { boundarySystem } = await import("@/lib/boundary-system")
+    
+    // Get the component being transformed
+    const component = state.currentConfig.components.find(c => c.id === componentId)
+    if (!component) return
+
+    // For manual transforms, we only apply basic position constraints, NOT rotation overrides
+    let finalTransform = transform
+    
+    if (transform.position) {
+      const roomDims = { 
+        width: state.roomDimensions?.width || 8, 
+        height: state.roomDimensions?.height || 3, 
+        depth: state.roomDimensions?.length || 6  // Use length from roomDimensions
+      }
+      
+      // Create updated component with new transform, preserving all required LightComponent properties
+      const updatedComponent: any = {
+        ...component,
+        position: transform.position,
+        rotation: transform.rotation || component.rotation,
+        scale: transform.scale || component.scale
+      }
+      
+      // Use smartPositioning with manual transform context to prevent rotation override
+      const constrainedComponent = boundarySystem.smartPositioning(
+        updatedComponent,
+        roomDims,
+        { isManualTransform: true, source: 'manual-transform' }
+      )
+      
+      // Only use position constraints from smartPositioning, preserve manual rotation
+      finalTransform = {
+        position: constrainedComponent.position,
+        rotation: transform.rotation || component.rotation, // PRESERVE manual rotation
+        scale: transform.scale || component.scale
+      }
+      
+      console.log(`🔧 MANUAL TRANSFORM FINAL:`, {
+        originalRotation: transform.rotation,
+        finalRotation: finalTransform.rotation,
+        preservedManualRotation: true
+      })
+    }
+
     dispatch({ 
       type: "UPDATE_COMPONENT", 
       componentId, 
-      updates: transform 
+      updates: finalTransform 
     })
-  }, [dispatch])
+  }, [dispatch, state.currentConfig.components, state.roomDimensions])
 
   // Keyboard controls
   useEffect(() => {

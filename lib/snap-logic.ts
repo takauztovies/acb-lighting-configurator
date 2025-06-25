@@ -38,28 +38,39 @@ export const snapLogic = {
       snapPointLocalPosition: snapPoint.position
     })
 
-    // Create transformation matrix for the component
-    const componentMatrix = new THREE.Matrix4()
-    const position = new THREE.Vector3(...(component.position || [0, 0, 0]))
-    const rotation = new THREE.Euler(...(component.rotation || [0, 0, 0]))
+    // Use high precision for calculations
+    const pos = new THREE.Vector3(...(component.position || [0, 0, 0]))
+    const rot = new THREE.Euler(...(component.rotation || [0, 0, 0]), 'XYZ')
     const scale = new THREE.Vector3(...(component.scale || [1, 1, 1]))
     
-    componentMatrix.compose(position, new THREE.Quaternion().setFromEuler(rotation), scale)
+    // Create transformation matrix with high precision
+    const transformMatrix = new THREE.Matrix4()
+    const quaternion = new THREE.Quaternion().setFromEuler(rot)
+    transformMatrix.compose(pos, quaternion, scale)
     
-    console.log(`🔧 TRANSFORMATION MATRIX COMPONENTS:`, {
-      position: [position.x, position.y, position.z],
-      rotation: [rotation.x, rotation.y, rotation.z],
-      scale: [scale.x, scale.y, scale.z]
+    console.log(`🔧 HIGH PRECISION TRANSFORMATION:`, {
+      position: [pos.x, pos.y, pos.z],
+      rotation: [rot.x, rot.y, rot.z],
+      scale: [scale.x, scale.y, scale.z],
+      quaternion: [quaternion.x, quaternion.y, quaternion.z, quaternion.w]
     })
     
-    // Transform snap point position
-    const snapPointVector = new THREE.Vector3(...snapPoint.position)
-    console.log(`📍 SNAP POINT BEFORE TRANSFORM:`, [snapPointVector.x, snapPointVector.y, snapPointVector.z])
+    // Transform snap point with high precision
+    const snapVector = new THREE.Vector3(...snapPoint.position)
+    console.log(`📍 SNAP POINT BEFORE TRANSFORM:`, [snapVector.x, snapVector.y, snapVector.z])
     
-    snapPointVector.applyMatrix4(componentMatrix)
-    console.log(`🌍 SNAP POINT AFTER TRANSFORM:`, [snapPointVector.x, snapPointVector.y, snapPointVector.z])
+    snapVector.applyMatrix4(transformMatrix)
     
-    return [snapPointVector.x, snapPointVector.y, snapPointVector.z]
+    // Round to avoid floating point drift (to 6 decimal places for precision)
+    const worldPos: [number, number, number] = [
+      Math.round(snapVector.x * 1000000) / 1000000,
+      Math.round(snapVector.y * 1000000) / 1000000,
+      Math.round(snapVector.z * 1000000) / 1000000
+    ]
+    
+    console.log(`🌍 HIGH PRECISION WORLD POSITION:`, worldPos)
+    
+    return worldPos
   },
 
   // Calculate world rotation of a snap point based on component transform
@@ -68,16 +79,22 @@ export const snapLogic = {
       return [0, 0, 0]
     }
 
-    const componentRotation = new THREE.Euler(...(component.rotation || [0, 0, 0]))
-    const snapPointRotation = new THREE.Euler(...(snapPoint.rotation || [0, 0, 0]))
+    const componentRotation = new THREE.Euler(...(component.rotation || [0, 0, 0]), 'XYZ')
+    const snapPointRotation = new THREE.Euler(...(snapPoint.rotation || [0, 0, 0]), 'XYZ')
     
-    // Combine rotations
+    // Use quaternions for precise rotation combination
     const combinedQuaternion = new THREE.Quaternion()
       .setFromEuler(componentRotation)
       .multiply(new THREE.Quaternion().setFromEuler(snapPointRotation))
     
-    const resultEuler = new THREE.Euler().setFromQuaternion(combinedQuaternion)
-    return [resultEuler.x, resultEuler.y, resultEuler.z]
+    const resultEuler = new THREE.Euler().setFromQuaternion(combinedQuaternion, 'XYZ')
+    
+    // Round to avoid floating point drift
+    return [
+      Math.round(resultEuler.x * 1000000) / 1000000,
+      Math.round(resultEuler.y * 1000000) / 1000000,
+      Math.round(resultEuler.z * 1000000) / 1000000
+    ]
   },
 
   // Check if two snap points are compatible for connection
@@ -103,14 +120,14 @@ export const snapLogic = {
     return compatibilityRules[snapPoint1.type]?.includes(snapPoint2.type) || false
   },
 
-  // Calculate position for connecting component to a snap point
+  // HIGH PRECISION Calculate position for connecting component to a snap point
   calculateConnectionPosition: (
     sourceComponent: Component,
     sourceSnapPoint: SnapPoint,
     targetComponent: Component | null,
     targetSnapPoint: SnapPoint | null
   ): { position: [number, number, number]; rotation: [number, number, number] } => {
-    console.log(`🔗 SNAP LOGIC - CONNECTION CALCULATION START:`, {
+    console.log(`🔗 HIGH PRECISION SNAP CALCULATION START:`, {
       sourceComponent: {
         name: sourceComponent.name,
         type: sourceComponent.type,
@@ -144,60 +161,60 @@ export const snapLogic = {
       }
     }
 
-    // STEP 1: Get the world position of the SOURCE snap point (the selected snap point on existing component)
+    // STEP 1: Get high precision world position of the SOURCE snap point
     const sourceWorldPosition = snapLogic.getWorldSnapPointPosition(sourceComponent, sourceSnapPoint)
-    console.log(`🌍 SOURCE SNAP POINT WORLD POSITION:`, sourceWorldPosition)
+    console.log(`🌍 SOURCE SNAP POINT WORLD POSITION (HIGH PRECISION):`, sourceWorldPosition)
     
-    // STEP 2: Get the local offset of the target snap point within the new component
-    const targetSnapOffset = targetSnapPoint.position || [0, 0, 0]
-    console.log(`📍 TARGET SNAP POINT LOCAL OFFSET:`, targetSnapOffset)
-    
-    // STEP 3: Account for target component transformations (rotation + scale)
+    // STEP 2: Calculate target component transformation matrices with high precision
     const targetRotation = targetComponent.rotation || [0, 0, 0]
     const targetScale = targetComponent.scale || [1, 1, 1]
+    const targetSnapOffset = targetSnapPoint.position || [0, 0, 0]
     
-    // Create transformation matrix (without position, just rotation and scale)
+    // Use high precision vectors and matrices
+    const rotEuler = new THREE.Euler(...targetRotation, 'XYZ')
+    const scaleVec = new THREE.Vector3(...targetScale)
+    const snapOffsetVec = new THREE.Vector3(...targetSnapOffset)
+    
+    // Create transformation matrix (rotation + scale only, no position)
     const transformMatrix = new THREE.Matrix4()
-    const rotation = new THREE.Euler(...targetRotation)
-    const scale = new THREE.Vector3(...targetScale)
-    const position = new THREE.Vector3(0, 0, 0) // Zero position for offset calculation
+    const quaternion = new THREE.Quaternion().setFromEuler(rotEuler)
+    const zeroPos = new THREE.Vector3(0, 0, 0)
     
-    transformMatrix.compose(position, new THREE.Quaternion().setFromEuler(rotation), scale)
+    transformMatrix.compose(zeroPos, quaternion, scaleVec)
     
-    // Apply transformation to the target snap point offset
-    const snapPointVector = new THREE.Vector3(...targetSnapOffset)
-    console.log(`📍 TARGET SNAP POINT BEFORE TRANSFORM:`, [snapPointVector.x, snapPointVector.y, snapPointVector.z])
-    
-    snapPointVector.applyMatrix4(transformMatrix)
-    
-    const transformedOffset: [number, number, number] = [
-      snapPointVector.x,
-      snapPointVector.y,
-      snapPointVector.z
-    ]
-    
-    console.log(`🔄 TARGET COMPONENT TRANSFORMATIONS:`, {
+    console.log(`🔄 TARGET COMPONENT HIGH PRECISION TRANSFORMATIONS:`, {
       rotation: targetRotation,
       rotationDegrees: [
-        (targetRotation[0] * 180 / Math.PI).toFixed(1),
-        (targetRotation[1] * 180 / Math.PI).toFixed(1),
-        (targetRotation[2] * 180 / Math.PI).toFixed(1)
+        (targetRotation[0] * 180 / Math.PI).toFixed(3),
+        (targetRotation[1] * 180 / Math.PI).toFixed(3),
+        (targetRotation[2] * 180 / Math.PI).toFixed(3)
       ],
-      scale: targetScale
+      scale: targetScale,
+      quaternion: [quaternion.x, quaternion.y, quaternion.z, quaternion.w]
     })
-    console.log(`🔧 TARGET SNAP POINT AFTER TRANSFORM:`, transformedOffset)
     
-    // STEP 4: Calculate final position
-    // Formula: newComponent.position = sourceWorldPosition - transformedTargetSnapOffset
-    let finalPosition: [number, number, number] = [
-      sourceWorldPosition[0] - transformedOffset[0],
-      sourceWorldPosition[1] - transformedOffset[1], 
-      sourceWorldPosition[2] - transformedOffset[2]
+    // Apply transformation to snap point offset with high precision
+    snapOffsetVec.applyMatrix4(transformMatrix)
+    
+    const transformedOffset: [number, number, number] = [
+      Math.round(snapOffsetVec.x * 1000000) / 1000000,
+      Math.round(snapOffsetVec.y * 1000000) / 1000000,
+      Math.round(snapOffsetVec.z * 1000000) / 1000000
     ]
     
-    console.log(`📍 BASIC CALCULATION RESULT:`, finalPosition)
+    console.log(`🔧 TARGET SNAP POINT TRANSFORMED OFFSET (HIGH PRECISION):`, transformedOffset)
     
-    // STEP 4.5: Check for ceiling-mounted track connection correction
+    // STEP 3: Calculate final position with high precision arithmetic
+    // Formula: newComponent.position = sourceWorldPosition - transformedTargetSnapOffset
+    let finalPosition: [number, number, number] = [
+      Math.round((sourceWorldPosition[0] - transformedOffset[0]) * 1000000) / 1000000,
+      Math.round((sourceWorldPosition[1] - transformedOffset[1]) * 1000000) / 1000000, 
+      Math.round((sourceWorldPosition[2] - transformedOffset[2]) * 1000000) / 1000000
+    ]
+    
+    console.log(`📍 HIGH PRECISION CALCULATION RESULT:`, finalPosition)
+    
+    // STEP 4: Special ceiling mounting preservation
     const sourceIsCeilingConnector = sourceComponent.type.includes('connector') && sourceComponent.position[1] > 2.0
     const targetIsTrack = targetComponent.type.includes('track') || targetComponent.type.includes('profile')
     
@@ -209,23 +226,22 @@ export const snapLogic = {
     })
     
     if (sourceIsCeilingConnector && targetIsTrack) {
-      // Keep X and Z from calculation, but force Y to be near ceiling
-      const ceilingY = sourceComponent.position[1] + 0.1 // Slightly above connector
+      // Preserve exact ceiling level with high precision
+      const ceilingY = Math.round((sourceComponent.position[1] + 0.1) * 1000000) / 1000000
       finalPosition = [finalPosition[0], ceilingY, finalPosition[2]]
       
-      console.log(`🔧 CEILING CORRECTION APPLIED:`, {
+      console.log(`🔧 CEILING CORRECTION APPLIED (HIGH PRECISION):`, {
         originalPosition: [sourceWorldPosition[0] - transformedOffset[0], sourceWorldPosition[1] - transformedOffset[1], sourceWorldPosition[2] - transformedOffset[2]],
         correctedPosition: finalPosition,
         reason: 'Forcing track to ceiling level for ceiling connector'
       })
     }
     
-    console.log(`📍 FINAL CALCULATED POSITION:`, finalPosition)
+    console.log(`📍 FINAL HIGH PRECISION POSITION:`, finalPosition)
     
-    // STEP 5: Calculate proper rotation for tracks/profiles with intelligent orientation
+    // STEP 5: Calculate rotation with intelligent orientation
     let finalRotation: [number, number, number] = [0, 0, 0]
     
-    // Check if this is a track/profile component
     const isTrackOrProfile = targetComponent.type.includes('track') || 
                             targetComponent.type.includes('profile') ||
                             targetComponent.type.includes('pipe')
@@ -238,29 +254,21 @@ export const snapLogic = {
     })
     
     if (isTrackOrProfile) {
-      // ULTRA ROBUST TRACK/PROFILE ROTATION LOGIC
+      // Default to horizontal for track models (90° X-axis rotation)
+      let preferredRotation: [number, number, number] = [Math.PI/2, 0, 0]
       
-             // Rule 1: Default to horizontal (track models need 90° X-axis rotation to be horizontal)
-       let preferredRotation: [number, number, number] = [Math.PI/2, 0, 0] // 90° around X-axis = horizontal for track models
-       
-       console.log(`🎯 RULE 1 - DEFAULT HORIZONTAL (track models):`, preferredRotation, {
-         degrees: [(Math.PI/2 * 180 / Math.PI).toFixed(1), '0.0', '0.0']
-       })
-       
-       // Rule 2: Check room boundaries to see if horizontal fits
-       // For now, assume room boundaries allow horizontal (we'll add boundary checks later)
-       const roomDimensions = { width: 8, length: 6, height: 3 } // Default room
-       
-       // Rule 3: If this is a ceiling connector, DEFINITELY make it horizontal
-       if (sourceIsCeilingConnector) {
-         preferredRotation = [Math.PI/2, 0, 0] // 90° X-axis = horizontal for track models
-         console.log(`🎯 RULE 3 - CEILING CONNECTOR FORCES HORIZONTAL:`, preferredRotation, {
-           degrees: [(Math.PI/2 * 180 / Math.PI).toFixed(1), '0.0', '0.0']
-         })
-       }
+      console.log(`🎯 DEFAULT HORIZONTAL ROTATION:`, preferredRotation, {
+        degrees: [(Math.PI/2 * 180 / Math.PI).toFixed(1), '0.0', '0.0']
+      })
       
-      // Rule 4: Check if horizontal would go outside room boundaries
-      // Estimate track length (assume 30cm default length)
+      // Force horizontal for ceiling connectors
+      if (sourceIsCeilingConnector) {
+        preferredRotation = [Math.PI/2, 0, 0]
+        console.log(`🎯 CEILING CONNECTOR FORCES HORIZONTAL:`, preferredRotation)
+      }
+      
+      // Check boundary collision with high precision
+      const roomDimensions = { width: 8, length: 6, height: 3 }
       const trackLength = 0.3 // 30cm
       const halfLength = trackLength / 2
       
@@ -271,7 +279,7 @@ export const snapLogic = {
         finalPosition[2] + halfLength > roomDimensions.length/2
       )
       
-      console.log(`🎯 RULE 4 - BOUNDARY CHECK:`, {
+      console.log(`🎯 BOUNDARY CHECK (HIGH PRECISION):`, {
         trackLength,
         halfLength,
         finalPosition,
@@ -283,41 +291,33 @@ export const snapLogic = {
         roomZRange: [-roomDimensions.length/2, roomDimensions.length/2]
       })
       
-             if (wouldHitWall) {
-         // Rule 5: If horizontal hits wall, go vertical pointing DOWN (not up)
-         // For track models: 0° X-axis = vertical, Math.PI = upside down vertical
-         preferredRotation = [0, 0, 0] // 0° around X-axis = pointing down for track models
-         console.log(`🎯 RULE 5 - WALL COLLISION, GOING VERTICAL DOWNWARD:`, preferredRotation, {
-           degrees: ['0.0', '0.0', '0.0']
-         })
-       }
+      if (wouldHitWall) {
+        // Vertical downward if horizontal hits walls
+        preferredRotation = [0, 0, 0]
+        console.log(`🎯 WALL COLLISION - VERTICAL DOWNWARD:`, preferredRotation)
+      }
       
       finalRotation = preferredRotation
       
-      console.log(`🎯 FINAL TRACK ROTATION DECISION:`, {
-        finalRotation,
-        finalRotationDegrees: [
-          (finalRotation[0] * 180 / Math.PI).toFixed(1),
-          (finalRotation[1] * 180 / Math.PI).toFixed(1),
-          (finalRotation[2] * 180 / Math.PI).toFixed(1)
-        ],
-        reasoning: wouldHitWall ? 'Vertical downward due to wall collision' : 'Horizontal as preferred'
-      })
-      
     } else {
-      // For other components (like connectors), use their intended rotation  
+      // Non-track components keep their original rotation
       finalRotation = targetComponent.rotation || [0, 0, 0]
-      console.log(`🎯 NON-TRACK COMPONENT - USING ORIGINAL ROTATION:`, finalRotation)
+      console.log(`🎯 NON-TRACK COMPONENT - ORIGINAL ROTATION:`, finalRotation)
     }
     
-    console.log(`🔄 FINAL ROTATION RESULT:`, {
-      componentType: targetComponent.type,
-      isTrackOrProfile,
+    // Round rotation to avoid floating point drift
+    finalRotation = [
+      Math.round(finalRotation[0] * 1000000) / 1000000,
+      Math.round(finalRotation[1] * 1000000) / 1000000,
+      Math.round(finalRotation[2] * 1000000) / 1000000
+    ]
+    
+    console.log(`🔄 FINAL HIGH PRECISION ROTATION:`, {
       finalRotation,
       finalRotationDegrees: [
-        (finalRotation[0] * 180 / Math.PI).toFixed(1),
-        (finalRotation[1] * 180 / Math.PI).toFixed(1),
-        (finalRotation[2] * 180 / Math.PI).toFixed(1)
+        (finalRotation[0] * 180 / Math.PI).toFixed(3),
+        (finalRotation[1] * 180 / Math.PI).toFixed(3),
+        (finalRotation[2] * 180 / Math.PI).toFixed(3)
       ]
     })
     
@@ -326,7 +326,7 @@ export const snapLogic = {
       rotation: finalRotation
     }
     
-    console.log(`✅ SNAP LOGIC FINAL RESULT:`, result)
+    console.log(`✅ HIGH PRECISION SNAP LOGIC RESULT:`, result)
     
     return result
   },

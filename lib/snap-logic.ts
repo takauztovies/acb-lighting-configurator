@@ -110,11 +110,29 @@ export const snapLogic = {
     targetComponent: Component | null,
     targetSnapPoint: SnapPoint | null
   ): { position: [number, number, number]; rotation: [number, number, number] } => {
-    console.log(`🔗 SNAP LOGIC - CONNECTION CALCULATION:`, {
-      sourceComponent: sourceComponent.name,
-      sourceSnapPoint: sourceSnapPoint.name,
-      targetComponent: targetComponent?.name || 'Unknown',
-      targetSnapPoint: targetSnapPoint?.name || 'Unknown'
+    console.log(`🔗 SNAP LOGIC - CONNECTION CALCULATION START:`, {
+      sourceComponent: {
+        name: sourceComponent.name,
+        type: sourceComponent.type,
+        position: sourceComponent.position,
+        rotation: sourceComponent.rotation,
+        scale: sourceComponent.scale
+      },
+      sourceSnapPoint: {
+        name: sourceSnapPoint.name,
+        position: sourceSnapPoint.position,
+        type: sourceSnapPoint.type
+      },
+      targetComponent: {
+        name: targetComponent?.name || 'Unknown',
+        type: targetComponent?.type || 'Unknown',
+        scale: targetComponent?.scale || [1, 1, 1],
+        rotation: targetComponent?.rotation || [0, 0, 0]
+      },
+      targetSnapPoint: {
+        name: targetSnapPoint?.name || 'Unknown',
+        position: targetSnapPoint?.position || [0, 0, 0]
+      }
     })
 
     // Safety check for required parameters
@@ -126,39 +144,191 @@ export const snapLogic = {
       }
     }
 
-    // CORRECT APPROACH: Calculate where the source component needs to be positioned
-    // so that its snap point aligns with the target snap point
+    // STEP 1: Get the world position of the SOURCE snap point (the selected snap point on existing component)
+    const sourceWorldPosition = snapLogic.getWorldSnapPointPosition(sourceComponent, sourceSnapPoint)
+    console.log(`🌍 SOURCE SNAP POINT WORLD POSITION:`, sourceWorldPosition)
     
-    // 1. Get the world position of the target snap point (where we want to connect)
-    const targetWorldPosition = snapLogic.getWorldSnapPointPosition(targetComponent, targetSnapPoint)
-    console.log(`🌍 TARGET SNAP POINT WORLD POSITION:`, targetWorldPosition)
+    // STEP 2: Get the local offset of the target snap point within the new component
+    const targetSnapOffset = targetSnapPoint.position || [0, 0, 0]
+    console.log(`📍 TARGET SNAP POINT LOCAL OFFSET:`, targetSnapOffset)
     
-    // 2. Get the local offset of the source snap point within the source component
-    const sourceSnapOffset = sourceSnapPoint.position || [0, 0, 0]
-    console.log(`📍 SOURCE SNAP POINT LOCAL OFFSET:`, sourceSnapOffset)
+    // STEP 3: Account for target component transformations (rotation + scale)
+    const targetRotation = targetComponent.rotation || [0, 0, 0]
+    const targetScale = targetComponent.scale || [1, 1, 1]
     
-    // 3. Calculate where to position the source component so its snap point aligns with target
-    // Formula: sourceComponent.position = targetWorldPosition - sourceSnapOffset
-    const finalPosition: [number, number, number] = [
-      targetWorldPosition[0] - sourceSnapOffset[0],
-      targetWorldPosition[1] - sourceSnapOffset[1], 
-      targetWorldPosition[2] - sourceSnapOffset[2]
+    // Create transformation matrix (without position, just rotation and scale)
+    const transformMatrix = new THREE.Matrix4()
+    const rotation = new THREE.Euler(...targetRotation)
+    const scale = new THREE.Vector3(...targetScale)
+    const position = new THREE.Vector3(0, 0, 0) // Zero position for offset calculation
+    
+    transformMatrix.compose(position, new THREE.Quaternion().setFromEuler(rotation), scale)
+    
+    // Apply transformation to the target snap point offset
+    const snapPointVector = new THREE.Vector3(...targetSnapOffset)
+    console.log(`📍 TARGET SNAP POINT BEFORE TRANSFORM:`, [snapPointVector.x, snapPointVector.y, snapPointVector.z])
+    
+    snapPointVector.applyMatrix4(transformMatrix)
+    
+    const transformedOffset: [number, number, number] = [
+      snapPointVector.x,
+      snapPointVector.y,
+      snapPointVector.z
     ]
     
-    console.log(`📍 CALCULATED SOURCE COMPONENT POSITION:`, finalPosition)
-    console.log(`✅ This should place source snap point at:`, [
-      finalPosition[0] + sourceSnapOffset[0],
-      finalPosition[1] + sourceSnapOffset[1],
-      finalPosition[2] + sourceSnapOffset[2]
-    ])
+    console.log(`🔄 TARGET COMPONENT TRANSFORMATIONS:`, {
+      rotation: targetRotation,
+      rotationDegrees: [
+        (targetRotation[0] * 180 / Math.PI).toFixed(1),
+        (targetRotation[1] * 180 / Math.PI).toFixed(1),
+        (targetRotation[2] * 180 / Math.PI).toFixed(1)
+      ],
+      scale: targetScale
+    })
+    console.log(`🔧 TARGET SNAP POINT AFTER TRANSFORM:`, transformedOffset)
     
-    // Use the existing component rotation as default
-    const defaultRotation: [number, number, number] = sourceComponent.rotation || [0, 0, 0]
+    // STEP 4: Calculate final position
+    // Formula: newComponent.position = sourceWorldPosition - transformedTargetSnapOffset
+    let finalPosition: [number, number, number] = [
+      sourceWorldPosition[0] - transformedOffset[0],
+      sourceWorldPosition[1] - transformedOffset[1], 
+      sourceWorldPosition[2] - transformedOffset[2]
+    ]
     
-    return {
-      position: finalPosition,
-      rotation: defaultRotation
+    console.log(`📍 BASIC CALCULATION RESULT:`, finalPosition)
+    
+    // STEP 4.5: Check for ceiling-mounted track connection correction
+    const sourceIsCeilingConnector = sourceComponent.type.includes('connector') && sourceComponent.position[1] > 2.0
+    const targetIsTrack = targetComponent.type.includes('track') || targetComponent.type.includes('profile')
+    
+    console.log(`🔍 CEILING DETECTION:`, {
+      sourceIsCeilingConnector,
+      targetIsTrack,
+      sourcePosition: sourceComponent.position,
+      sourceType: sourceComponent.type
+    })
+    
+    if (sourceIsCeilingConnector && targetIsTrack) {
+      // Keep X and Z from calculation, but force Y to be near ceiling
+      const ceilingY = sourceComponent.position[1] + 0.1 // Slightly above connector
+      finalPosition = [finalPosition[0], ceilingY, finalPosition[2]]
+      
+      console.log(`🔧 CEILING CORRECTION APPLIED:`, {
+        originalPosition: [sourceWorldPosition[0] - transformedOffset[0], sourceWorldPosition[1] - transformedOffset[1], sourceWorldPosition[2] - transformedOffset[2]],
+        correctedPosition: finalPosition,
+        reason: 'Forcing track to ceiling level for ceiling connector'
+      })
     }
+    
+    console.log(`📍 FINAL CALCULATED POSITION:`, finalPosition)
+    
+    // STEP 5: Calculate proper rotation for tracks/profiles with intelligent orientation
+    let finalRotation: [number, number, number] = [0, 0, 0]
+    
+    // Check if this is a track/profile component
+    const isTrackOrProfile = targetComponent.type.includes('track') || 
+                            targetComponent.type.includes('profile') ||
+                            targetComponent.type.includes('pipe')
+    
+    console.log(`🎯 ROTATION CALCULATION START:`, {
+      componentType: targetComponent.type,
+      isTrackOrProfile,
+      sourceComponentType: sourceComponent.type,
+      sourcePosition: sourceComponent.position
+    })
+    
+    if (isTrackOrProfile) {
+      // ULTRA ROBUST TRACK/PROFILE ROTATION LOGIC
+      
+             // Rule 1: Default to horizontal (track models need 90° X-axis rotation to be horizontal)
+       let preferredRotation: [number, number, number] = [Math.PI/2, 0, 0] // 90° around X-axis = horizontal for track models
+       
+       console.log(`🎯 RULE 1 - DEFAULT HORIZONTAL (track models):`, preferredRotation, {
+         degrees: [(Math.PI/2 * 180 / Math.PI).toFixed(1), '0.0', '0.0']
+       })
+       
+       // Rule 2: Check room boundaries to see if horizontal fits
+       // For now, assume room boundaries allow horizontal (we'll add boundary checks later)
+       const roomDimensions = { width: 8, length: 6, height: 3 } // Default room
+       
+       // Rule 3: If this is a ceiling connector, DEFINITELY make it horizontal
+       if (sourceIsCeilingConnector) {
+         preferredRotation = [Math.PI/2, 0, 0] // 90° X-axis = horizontal for track models
+         console.log(`🎯 RULE 3 - CEILING CONNECTOR FORCES HORIZONTAL:`, preferredRotation, {
+           degrees: [(Math.PI/2 * 180 / Math.PI).toFixed(1), '0.0', '0.0']
+         })
+       }
+      
+      // Rule 4: Check if horizontal would go outside room boundaries
+      // Estimate track length (assume 30cm default length)
+      const trackLength = 0.3 // 30cm
+      const halfLength = trackLength / 2
+      
+      const wouldHitWall = (
+        finalPosition[0] - halfLength < -roomDimensions.width/2 ||
+        finalPosition[0] + halfLength > roomDimensions.width/2 ||
+        finalPosition[2] - halfLength < -roomDimensions.length/2 ||
+        finalPosition[2] + halfLength > roomDimensions.length/2
+      )
+      
+      console.log(`🎯 RULE 4 - BOUNDARY CHECK:`, {
+        trackLength,
+        halfLength,
+        finalPosition,
+        roomDimensions,
+        wouldHitWall,
+        xRange: [finalPosition[0] - halfLength, finalPosition[0] + halfLength],
+        zRange: [finalPosition[2] - halfLength, finalPosition[2] + halfLength],
+        roomXRange: [-roomDimensions.width/2, roomDimensions.width/2],
+        roomZRange: [-roomDimensions.length/2, roomDimensions.length/2]
+      })
+      
+             if (wouldHitWall) {
+         // Rule 5: If horizontal hits wall, go vertical pointing DOWN (not up)
+         // For track models: 0° X-axis = vertical, Math.PI = upside down vertical
+         preferredRotation = [0, 0, 0] // 0° around X-axis = pointing down for track models
+         console.log(`🎯 RULE 5 - WALL COLLISION, GOING VERTICAL DOWNWARD:`, preferredRotation, {
+           degrees: ['0.0', '0.0', '0.0']
+         })
+       }
+      
+      finalRotation = preferredRotation
+      
+      console.log(`🎯 FINAL TRACK ROTATION DECISION:`, {
+        finalRotation,
+        finalRotationDegrees: [
+          (finalRotation[0] * 180 / Math.PI).toFixed(1),
+          (finalRotation[1] * 180 / Math.PI).toFixed(1),
+          (finalRotation[2] * 180 / Math.PI).toFixed(1)
+        ],
+        reasoning: wouldHitWall ? 'Vertical downward due to wall collision' : 'Horizontal as preferred'
+      })
+      
+    } else {
+      // For other components (like connectors), use their intended rotation  
+      finalRotation = targetComponent.rotation || [0, 0, 0]
+      console.log(`🎯 NON-TRACK COMPONENT - USING ORIGINAL ROTATION:`, finalRotation)
+    }
+    
+    console.log(`🔄 FINAL ROTATION RESULT:`, {
+      componentType: targetComponent.type,
+      isTrackOrProfile,
+      finalRotation,
+      finalRotationDegrees: [
+        (finalRotation[0] * 180 / Math.PI).toFixed(1),
+        (finalRotation[1] * 180 / Math.PI).toFixed(1),
+        (finalRotation[2] * 180 / Math.PI).toFixed(1)
+      ]
+    })
+    
+    const result = {
+      position: finalPosition,
+      rotation: finalRotation
+    }
+    
+    console.log(`✅ SNAP LOGIC FINAL RESULT:`, result)
+    
+    return result
   },
 
   // Find the best snap point on a component for connection

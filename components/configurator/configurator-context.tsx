@@ -177,7 +177,7 @@ export interface ConfiguratorState {
 // Define action types
 type Action =
   | { type: "SET_VIEW_MODE"; mode: "2d" | "3d" }
-  | { type: "ADD_COMPONENT"; component: Component }
+  | { type: "ADD_COMPONENT"; component: Component; fromSnapPoint?: boolean }
   | { type: "REMOVE_COMPONENT"; componentId: string }
   | { type: "UPDATE_COMPONENT"; componentId: string; updates: Partial<Component> }
   | { type: "SET_SELECTED_COMPONENT"; componentId: string }
@@ -358,7 +358,44 @@ function configuratorReducer(state: ConfiguratorState, action: Action): Configur
       }
       console.log("Adding component to configuration:", action.component)
       
-      // Apply boundary constraints to new component  
+      // CRITICAL FIX: Skip all corrections for snap point placements!
+      if (action.fromSnapPoint) {
+        console.log(`🔒 SNAP POINT PLACEMENT - PRESERVING EXACT POSITION AND ROTATION`)
+        console.log(`📍 Position: [${action.component.position?.[0]}, ${action.component.position?.[1]}, ${action.component.position?.[2]}]`)
+        console.log(`🔄 Rotation: [${action.component.rotation?.[0]}, ${action.component.rotation?.[1]}, ${action.component.rotation?.[2]}]`, {
+          degrees: [
+            ((action.component.rotation?.[0] || 0) * 180 / Math.PI).toFixed(1),
+            ((action.component.rotation?.[1] || 0) * 180 / Math.PI).toFixed(1),
+            ((action.component.rotation?.[2] || 0) * 180 / Math.PI).toFixed(1)
+          ]
+        })
+        
+        // Use the component exactly as calculated by snap logic
+        const constrainedComponent = {
+          ...action.component
+        }
+        
+        const newComponentCables = calculateAllCables(
+          [...state.currentConfig.components, constrainedComponent],
+          state.socketPosition,
+          state.cablePricing,
+        )
+        return {
+          ...state,
+          currentConfig: {
+            ...state.currentConfig,
+            components: [...state.currentConfig.components, constrainedComponent],
+            totalPrice:
+              [...state.currentConfig.components, constrainedComponent].reduce((sum, c) => sum + c.price, 0) +
+              newComponentCables.reduce((sum, cable) => sum + cable.totalPrice, 0),
+          },
+          cableCalculations: newComponentCables,
+          selectedComponentId: constrainedComponent.id,
+          selectedComponentIds: [constrainedComponent.id],
+        }
+      }
+      
+      // Apply boundary constraints to new component (only for non-snap-point placements)
       const roomDims = state.roomDimensions || { width: 8, length: 6, height: 3 }
       
       // Force safe height for ALL new components - emergency fix
@@ -370,27 +407,51 @@ function configuratorReducer(state: ConfiguratorState, action: Action): Configur
         type: action.component.type,
         originalPosition: action.component.position,
         originalRotation: action.component.rotation,
-        name: action.component.name
+        name: action.component.name,
+        fromSnapPoint: action.fromSnapPoint
       })
       
-      if (safePosition[1] > maxSafeHeight) {
+      // CRITICAL FIX: Don't apply height corrections to ceiling-mounted connectors or snap point components
+      const isCeilingConnector = action.component.type === "connector" && safePosition[1] > 2.5
+      const isFromSnapPoint = !!action.fromSnapPoint
+      
+      if (!isCeilingConnector && !isFromSnapPoint && safePosition[1] > maxSafeHeight) {
         safePosition = [safePosition[0], maxSafeHeight, safePosition[2]]
         console.log(`🚨 EMERGENCY HEIGHT CORRECTION (ADD): Component ${action.component.id} moved from y=${action.component.position?.[1]} to y=${maxSafeHeight}`)
+      } else if (isCeilingConnector || isFromSnapPoint) {
+        console.log(`🔒 PRESERVING ORIGINAL POSITION for ${isCeilingConnector ? 'ceiling connector' : 'snap point component'}: ${action.component.id} at y=${safePosition[1]}`)
       }
       
-      // 🔥 ABSOLUTE OVERRIDE FOR TRACKS - FORCE HORIZONTAL ROTATION
-      if (action.component.type === "track") {
+      // 🔥 ABSOLUTE OVERRIDE FOR TRACKS - FORCE HORIZONTAL ROTATION (but skip for snap point connections)
+      if (action.component.type === "track" && !isFromSnapPoint) {
         originalRotation = [Math.PI/2, 0, 0]  // CRITICAL FIX: Use 90° around X-axis for horizontal tracks
         console.log(`🔥 TRACK ROTATION ABSOLUTE OVERRIDE: FORCED TO [${Math.PI/2}, 0, 0] (was [${action.component.rotation?.[0]}, ${action.component.rotation?.[1]}, ${action.component.rotation?.[2]}])`)
+      } else if (action.component.type === "track" && isFromSnapPoint) {
+        console.log(`🔒 PRESERVING SNAP POINT ROTATION for track: ${action.component.id} rotation=[${action.component.rotation?.[0]}, ${action.component.rotation?.[1]}, ${action.component.rotation?.[2]}]`)
       }
       
-      const constraintResult = boundarySystem.validateAndCorrectPosition(
-        action.component.type,
-        safePosition,
-        originalRotation,
-        action.component.scale || [1, 1, 1],
-        roomDims
-      )
+      // Skip boundary constraints for snap point connections to preserve precise positioning and rotation
+      let constraintResult: any
+      if (isFromSnapPoint) {
+        // For snap point connections, preserve the exact calculated position and rotation
+        constraintResult = {
+          position: safePosition,
+          rotation: originalRotation,
+          corrected: false,
+          reason: 'Snap point connection - preserving exact calculations'
+        }
+        console.log(`🔒 PRESERVING SNAP POINT CALCULATIONS - NO BOUNDARY CONSTRAINTS`)
+      } else {
+        // For direct placement, apply boundary constraints
+        constraintResult = boundarySystem.validateAndCorrectPosition(
+          action.component.type,
+          safePosition,
+          originalRotation,
+          action.component.scale || [1, 1, 1],
+          roomDims
+        )
+        console.log(`🔧 APPLYING BOUNDARY CONSTRAINTS for direct placement`)
+      }
       
       console.log(`📤 FINAL ADD_COMPONENT RESULT:`, {
         type: action.component.type,
@@ -464,13 +525,16 @@ function configuratorReducer(state: ConfiguratorState, action: Action): Configur
               if (action.updates.position || action.updates.rotation) {
                 const roomDims = state.roomDimensions || { width: 8, length: 6, height: 3 }
                 
-                // Force safe height for ALL components - emergency fix
+                // Force safe height for components (excluding ceiling-mounted connectors)
                 const maxSafeHeight = Math.min(roomDims.height - 1.0, 2.0)
                 let safePosition = updatedComponent.position || [0, 0, 0]
+                const isCeilingConnector = component.type === "connector" && safePosition[1] > 2.5
                 
-                if (safePosition[1] > maxSafeHeight) {
+                if (!isCeilingConnector && safePosition[1] > maxSafeHeight) {
                   safePosition = [safePosition[0], maxSafeHeight, safePosition[2]]
                   console.log(`🚨 EMERGENCY HEIGHT CORRECTION: Component ${component.id} moved from y=${updatedComponent.position?.[1]} to y=${maxSafeHeight}`)
+                } else if (isCeilingConnector) {
+                  console.log(`🔒 PRESERVING CEILING CONNECTOR POSITION: ${component.id} at y=${safePosition[1]}`)
                 }
                 
                 // Detect if this is a manual transform (rotation change without position change)

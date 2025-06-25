@@ -136,9 +136,11 @@ export function GuidedComponentPlacement({ setupData, onComplete }: GuidedCompon
       initialRotation = [0, 0, 0]  // NO ROTATION - try natural orientation
       console.log(`🔄 CONNECTOR ROTATION SET TO NATURAL:`, initialRotation)
     } else if (componentType === "track") {
-      // ULTRA DEBUG: Try different rotation for tracks - maybe they're naturally horizontal
-      initialRotation = [0, 0, 0]  // NO ROTATION - try natural orientation first
-      console.log(`🔄 TRACK ROTATION SET TO NATURAL (TESTING):`, initialRotation)
+      // Track models need 90° X-axis rotation to appear horizontal
+      initialRotation = [Math.PI/2, 0, 0]  // 90° around X-axis for horizontal tracks
+      console.log(`🔄 TRACK ROTATION SET TO HORIZONTAL:`, initialRotation, {
+        degrees: [(Math.PI/2 * 180 / Math.PI).toFixed(1), '0.0', '0.0']
+      })
     } else if (componentType === "spotlight") {
       // For pendant lamps, try natural orientation
       initialRotation = [0, 0, 0]  // Natural orientation for vertical hanging
@@ -300,8 +302,10 @@ export function GuidedComponentPlacement({ setupData, onComplete }: GuidedCompon
       baseRotation = [0, 0, 0] // ULTRA DEBUG: Try natural orientation
       console.log(`🔄 SNAP CONNECTOR ROTATION SET TO NATURAL:`, baseRotation)
     } else if (componentTemplate.type === "track") {
-      baseRotation = [0, 0, 0] // ULTRA DEBUG: Try natural orientation first
-      console.log(`🔄 SNAP TRACK ROTATION SET TO NATURAL (TESTING):`, baseRotation)
+      baseRotation = [Math.PI/2, 0, 0] // Track models need 90° X-axis to be horizontal
+      console.log(`🔄 SNAP TRACK ROTATION SET TO HORIZONTAL:`, baseRotation, {
+        degrees: [(Math.PI/2 * 180 / Math.PI).toFixed(1), '0.0', '0.0']
+      })
     } else if (componentTemplate.type === "spotlight") {
       baseRotation = [0, 0, 0] // Natural orientation for vertical hanging
       console.log(`🔄 SNAP SPOTLIGHT/PENDANT ROTATION SET TO NATURAL:`, baseRotation)
@@ -317,7 +321,19 @@ export function GuidedComponentPlacement({ setupData, onComplete }: GuidedCompon
       ]
     })
 
-    // Create a temporary target component object with all required properties for snap calculation
+    // CRITICAL FIX: Calculate the actual scale BEFORE the snap point calculation
+    const defaultScale = componentTemplate.specifications?.scale || 1
+    let componentScale: [number, number, number] = [defaultScale, defaultScale, defaultScale]
+    
+    if (componentTemplate.name?.toLowerCase().includes('easy link end cap white') || 
+        componentTemplate.name?.toLowerCase().includes('connector')) {
+      componentScale = [0.5, 0.5, 0.5] // 50% scale for end caps
+      console.log(`🔧 CONNECTOR SCALE APPLIED:`, componentScale)
+    }
+
+    console.log(`📏 FINAL COMPONENT SCALE:`, componentScale)
+
+    // Create a temporary target component object with the CORRECT scale for snap calculation
     const tempTargetComponent: Component = {
       id: `temp-${componentTemplate.type}-${Date.now()}`,
       name: componentTemplate.name,
@@ -326,15 +342,22 @@ export function GuidedComponentPlacement({ setupData, onComplete }: GuidedCompon
       image: componentTemplate.image,
       position: [0, 0, 0], 
       rotation: baseRotation, 
-      scale: [1, 1, 1],
+      scale: componentScale, // USE THE ACTUAL SCALE, NOT [1,1,1]!
       connections: [],
       snapPoints: componentTemplate.snapPoints || [],
       price: componentTemplate.price || 0,
       properties: componentTemplate.specifications || {},
       initialPosition: [0, 0, 0],
       initialRotation: baseRotation,
-      initialScale: [1, 1, 1]
+      initialScale: componentScale
     }
+    
+    console.log(`🔗 SNAP CALCULATION WITH CORRECT SCALE:`, {
+      componentName: tempTargetComponent.name,
+      scale: tempTargetComponent.scale,
+      targetSnapPoint: targetSnapPoint.name,
+      targetSnapPointPosition: targetSnapPoint.position
+    })
     
     const connectionData = snapLogic.calculateConnectionPosition(
       sourceComponent,
@@ -342,42 +365,36 @@ export function GuidedComponentPlacement({ setupData, onComplete }: GuidedCompon
       tempTargetComponent,
       targetSnapPoint
     )
-    
-    // Apply default scale for specific components
-    const defaultScale = componentTemplate.specifications?.scale || 1
-    let componentScale: [number, number, number] = [defaultScale, defaultScale, defaultScale]
-    
-    if (componentTemplate.name?.toLowerCase().includes('easy link end cap white') || 
-        componentTemplate.name?.toLowerCase().includes('connector')) {
-      componentScale = [0.5, 0.5, 0.5] // 50% scale for end caps
-    }
 
-    // Apply boundary constraints to prevent going through walls/ceiling
-    const roomDims = state.roomDimensions || { width: 8, length: 6, height: 3 }
-    const constraintResult = boundarySystem.validateAndCorrectPosition(
-      componentTemplate.type,
-      connectionData.position,
-      connectionData.rotation,
-      componentScale,
-      roomDims
-    )
+    console.log(`🎯 SNAP POINT FINAL CALCULATED POSITION:`, {
+      calculatedPosition: connectionData.position,
+      calculatedRotation: connectionData.rotation,
+      sourceSnapPointName: sourceSnapPoint.name,
+      targetSnapPointName: targetSnapPoint.name
+    })
 
-    // Create new component with calculated position and rotation
+    // CRITICAL FIX: Do NOT apply boundary constraints for snap point connections!
+    // The component MUST be placed at the exact calculated position for perfect alignment
+    // Boundary constraints would break the snap point alignment
+    
+    console.log(`🔒 SKIPPING BOUNDARY CONSTRAINTS for snap point precision`)
+
+    // Create new component with the EXACT calculated position and rotation (no constraints!)
     const newComponent: Component = {
       id: `${componentTemplate.type}-${Date.now()}`,
       name: componentTemplate.name,
       type: componentTemplate.type,
       model3d: componentTemplate.model3d,
       image: componentTemplate.image,
-      position: constraintResult.position,
-      rotation: constraintResult.rotation,
+      position: connectionData.position, // Use EXACT calculated position
+      rotation: connectionData.rotation, // Use EXACT calculated rotation
       scale: componentScale,
       connections: [sourceComponent.id], // Track connection
       snapPoints: componentTemplate.snapPoints || [],
       price: componentTemplate.price || 0,
       properties: componentTemplate.specifications || {},
-      initialPosition: constraintResult.position, // Store initial position for reset
-      initialRotation: constraintResult.rotation,
+      initialPosition: connectionData.position, // Store exact position for reset
+      initialRotation: connectionData.rotation,
       initialScale: componentScale
     }
 
@@ -387,7 +404,7 @@ export function GuidedComponentPlacement({ setupData, onComplete }: GuidedCompon
       connections: [...(sourceComponent.connections || []), newComponent.id]
     }
 
-    dispatch({ type: "ADD_COMPONENT", component: newComponent })
+    dispatch({ type: "ADD_COMPONENT", component: newComponent, fromSnapPoint: true })
     dispatch({ type: "UPDATE_COMPONENT", componentId: sourceComponent.id, updates: { connections: updatedSourceComponent.connections } })
     dispatch({ type: "CLEAR_SELECTED_SNAP_POINT" })
     
@@ -396,9 +413,9 @@ export function GuidedComponentPlacement({ setupData, onComplete }: GuidedCompon
       target: newComponent.name,
       sourceSnapPoint: sourceSnapPoint.name,
       targetSnapPoint: targetSnapPoint.name,
-      position: constraintResult.position,
-      rotation: constraintResult.rotation,
-      constraintApplied: constraintResult.corrected
+      position: connectionData.position,
+      rotation: connectionData.rotation,
+      constraintApplied: false // No constraints applied for precise snap alignment
     })
   }
 

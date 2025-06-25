@@ -26,15 +26,25 @@ export function ConfiguratorViewer() {
   // Handle snap point selection - this starts the placement mode
   const handleSnapPointClick = useCallback(
     (componentId: string, snapPointId: string) => {
-      console.log(`🎯 SNAP POINT CLICKED:`, {
+      console.log(`�� SNAP POINT CLICKED - ULTRA DEBUG:`, {
         componentId,
         snapPointId,
-        currentSelectedSnapPoint: state.selectedSnapPoint
+        currentSelectedSnapPoint: state.selectedSnapPoint,
+        componentName: state.currentConfig.components.find(c => c.id === componentId)?.name,
+        snapPointDetails: state.currentConfig.components.find(c => c.id === componentId)?.snapPoints?.find(sp => sp.id === snapPointId)
       })
+      
+      // Add visual notification
+      console.log(`🟢 SNAP POINT SELECTION SUCCESSFUL!`)
+      console.log(`📋 NEXT STEP: Click a component in the sidebar to connect it to this snap point`)
+      
       dispatch({ type: "SET_SELECTED_SNAP_POINT", componentId, snapPointId })
       console.log(`✅ Snap point selection dispatched`)
+      
+      // Add alert for testing
+      alert(`🎯 SNAP POINT SELECTED!\n\nComponent: ${state.currentConfig.components.find(c => c.id === componentId)?.name}\nSnap Point: ${state.currentConfig.components.find(c => c.id === componentId)?.snapPoints?.find(sp => sp.id === snapPointId)?.name}\n\nNow click a track component from the sidebar to connect it!`)
     },
-    [dispatch, state.selectedSnapPoint],
+    [dispatch, state.selectedSnapPoint, state.currentConfig.components],
   )
 
   // Delete selected components

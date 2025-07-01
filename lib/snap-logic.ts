@@ -1,4 +1,4 @@
-// Enhanced snap logic implementation
+// Enhanced snap logic implementation with perfect alignment
 import * as THREE from "three"
 
 export interface SnapPoint {
@@ -23,102 +23,153 @@ export interface Component {
 }
 
 export const snapLogic = {
-  // Calculate world position of a snap point based on component transform
+  // Calculate world position of a snap point using proper 3D transformations
   getWorldSnapPointPosition: (component: Component, snapPoint: SnapPoint): [number, number, number] => {
     if (!component || !snapPoint) {
       console.warn('Invalid component or snap point provided')
       return [0, 0, 0]
     }
 
-    console.log(`🌍 WORLD SNAP POINT CALCULATION:`, {
-      componentId: component.id,
-      componentPosition: component.position,
-      componentRotation: component.rotation,
-      componentScale: component.scale,
-      snapPointId: snapPoint.id,
-      snapPointLocalPosition: snapPoint.position
-    })
-
-    // Use ultra high precision for calculations
-    const pos = new THREE.Vector3(...(component.position || [0, 0, 0]))
-    const rot = new THREE.Euler(...(component.rotation || [0, 0, 0]), 'XYZ')
-    const scale = new THREE.Vector3(...(component.scale || [1, 1, 1]))
+    // Component transform data
+    const componentPos = component.position || [0, 0, 0]
+    const componentRot = component.rotation || [0, 0, 0]
+    const componentScale = component.scale || [1, 1, 1]
+    const snapPointLocal = snapPoint.position || [0, 0, 0]
     
-    // Create transformation matrix with ultra high precision
+    // Create transformation matrices
+    const translationMatrix = new THREE.Matrix4().makeTranslation(
+      componentPos[0], componentPos[1], componentPos[2]
+    )
+    
+    const rotationMatrix = new THREE.Matrix4().makeRotationFromEuler(
+      new THREE.Euler(componentRot[0], componentRot[1], componentRot[2], 'XYZ')
+    )
+    
+    const scaleMatrix = new THREE.Matrix4().makeScale(
+      componentScale[0], componentScale[1], componentScale[2]
+    )
+    
+    // Combine transformations: Translation * Rotation * Scale
     const transformMatrix = new THREE.Matrix4()
-    const quaternion = new THREE.Quaternion().setFromEuler(rot)
-    transformMatrix.compose(pos, quaternion, scale)
+      .multiplyMatrices(translationMatrix, rotationMatrix)
+      .multiply(scaleMatrix)
     
-    console.log(`🔧 ULTRA HIGH PRECISION TRANSFORMATION:`, {
-      position: [pos.x, pos.y, pos.z],
-      rotation: [rot.x, rot.y, rot.z],
-      scale: [scale.x, scale.y, scale.z],
-      quaternion: [quaternion.x, quaternion.y, quaternion.z, quaternion.w]
-    })
+    // Transform the local snap point position to world space
+    const localSnapVector = new THREE.Vector3(
+      snapPointLocal[0], snapPointLocal[1], snapPointLocal[2]
+    )
     
-    // Transform snap point with ultra high precision
-    const snapVector = new THREE.Vector3(...snapPoint.position)
-    console.log(`📍 SNAP POINT BEFORE TRANSFORM:`, [snapVector.x, snapVector.y, snapVector.z])
+    const worldSnapVector = localSnapVector.applyMatrix4(transformMatrix)
     
-    snapVector.applyMatrix4(transformMatrix)
-    
-    // Round to avoid floating point drift (to 12 decimal places for perfect precision)
     const worldPos: [number, number, number] = [
-      Math.round(snapVector.x * 1000000000000) / 1000000000000,
-      Math.round(snapVector.y * 1000000000000) / 1000000000000,
-      Math.round(snapVector.z * 1000000000000) / 1000000000000
+      worldSnapVector.x,
+      worldSnapVector.y, 
+      worldSnapVector.z
     ]
     
-    console.log(`🌍 ULTRA HIGH PRECISION WORLD POSITION:`, worldPos)
+    console.log(`🌍 PRECISE WORLD SNAP POSITION:`, {
+      componentId: component.id,
+      componentPos,
+      componentRot,
+      componentScale,
+      snapPointLocal,
+      worldPos
+    })
     
     return worldPos
   },
 
-  // Calculate world rotation of a snap point based on component transform
+  // Calculate world rotation of a snap point using proper 3D transformations
   getWorldSnapPointRotation: (component: Component, snapPoint: SnapPoint): [number, number, number] => {
     if (!component || !snapPoint) {
       return [0, 0, 0]
     }
 
-    const componentRotation = new THREE.Euler(...(component.rotation || [0, 0, 0]), 'XYZ')
-    const snapPointRotation = new THREE.Euler(...(snapPoint.rotation || [0, 0, 0]), 'XYZ')
+    // Component and snap point rotations
+    const componentRot = component.rotation || [0, 0, 0]
+    const snapPointRot = snapPoint.rotation || [0, 0, 0]
     
-    // Use quaternions for precise rotation combination
-    const combinedQuaternion = new THREE.Quaternion()
-      .setFromEuler(componentRotation)
-      .multiply(new THREE.Quaternion().setFromEuler(snapPointRotation))
+    // Create rotation matrices
+    const componentRotMatrix = new THREE.Matrix4().makeRotationFromEuler(
+      new THREE.Euler(componentRot[0], componentRot[1], componentRot[2], 'XYZ')
+    )
     
-    const resultEuler = new THREE.Euler().setFromQuaternion(combinedQuaternion, 'XYZ')
+    const snapRotMatrix = new THREE.Matrix4().makeRotationFromEuler(
+      new THREE.Euler(snapPointRot[0], snapPointRot[1], snapPointRot[2], 'XYZ')
+    )
     
-    // Round to avoid floating point drift with ultra high precision
-    return [
-      Math.round(resultEuler.x * 1000000000000) / 1000000000000,
-      Math.round(resultEuler.y * 1000000000000) / 1000000000000,
-      Math.round(resultEuler.z * 1000000000000) / 1000000000000
-    ]
+    // Combine rotations
+    const finalRotMatrix = new THREE.Matrix4().multiplyMatrices(componentRotMatrix, snapRotMatrix)
+    
+    // Extract Euler angles
+    const euler = new THREE.Euler().setFromRotationMatrix(finalRotMatrix, 'XYZ')
+    
+    return [euler.x, euler.y, euler.z]
   },
 
   // Check if two snap points are compatible for connection
-  areSnapPointsCompatible: (snapPoint1: SnapPoint, snapPoint2: SnapPoint): boolean => {
+  areSnapPointsCompatible: (snapPoint1: SnapPoint, snapPoint2: SnapPoint, component1?: Component, component2?: Component): boolean => {
     if (!snapPoint1 || !snapPoint2) return false
     
-    // Check direct type compatibility
-    if (snapPoint1.type === snapPoint2.type) return true
+    // NEW STRICT COMPATIBILITY RULES based on component types and snap point types
     
-    // Check compatible types arrays
-    if (snapPoint1.compatibleTypes?.includes(snapPoint2.type)) return true
-    if (snapPoint2.compatibleTypes?.includes(snapPoint1.type)) return true
-    
-    // Special compatibility rules
-    const compatibilityRules: Record<string, string[]> = {
-      power: ["mechanical", "mounting"],
-      mechanical: ["power", "track", "mounting"],
-      track: ["mechanical", "accessory"],
-      mounting: ["power", "mechanical"],
-      accessory: ["track", "mechanical"]
+    // Rule 1: Track snap points on connectors/caps can ONLY connect to tracks/profiles
+    if (snapPoint1.type === "track" && component1?.type === "connector") {
+      return snapPoint2.type === "track" && (component2?.type === "track" || component2?.type === "profile")
+    }
+    if (snapPoint2.type === "track" && component2?.type === "connector") {
+      return snapPoint1.type === "track" && (component1?.type === "track" || component1?.type === "profile")
     }
     
-    return compatibilityRules[snapPoint1.type]?.includes(snapPoint2.type) || false
+    // Rule 2: Track snap points on tracks/profiles can ONLY connect to connectors or caps
+    if (snapPoint1.type === "track" && (component1?.type === "track" || component1?.type === "profile")) {
+      return snapPoint2.type === "track" && component2?.type === "connector"
+    }
+    if (snapPoint2.type === "track" && (component2?.type === "track" || component2?.type === "profile")) {
+      return snapPoint1.type === "track" && component1?.type === "connector"
+    }
+    
+    // Rule 3: Mounting snap points connect lamps/pendants to connectors
+    if (snapPoint1.type === "mounting") {
+      return (snapPoint2.type === "mechanical" && (component2?.type === "spotlight" || component2?.name?.toLowerCase().includes('pendant'))) ||
+             (snapPoint2.type === "mounting" && component2?.type === "connector")
+    }
+    if (snapPoint2.type === "mounting") {
+      return (snapPoint1.type === "mechanical" && (component1?.type === "spotlight" || component1?.name?.toLowerCase().includes('pendant'))) ||
+             (snapPoint1.type === "mounting" && component1?.type === "connector")
+    }
+    
+    // Rule 4: Mechanical snap points on pendants connect to lamps or mounting points on connectors
+    if (snapPoint1.type === "mechanical" && component1?.name?.toLowerCase().includes('pendant')) {
+      return (snapPoint2.type === "mechanical" && component2?.type === "spotlight") ||
+             (snapPoint2.type === "mounting" && component2?.type === "connector")
+    }
+    if (snapPoint2.type === "mechanical" && component2?.name?.toLowerCase().includes('pendant')) {
+      return (snapPoint1.type === "mechanical" && component1?.type === "spotlight") ||
+             (snapPoint1.type === "mounting" && component1?.type === "connector")
+    }
+    
+    // Rule 5: Mechanical snap points on lamps connect to mounting points
+    if (snapPoint1.type === "mechanical" && component1?.type === "spotlight") {
+      return snapPoint2.type === "mounting"
+    }
+    if (snapPoint2.type === "mechanical" && component2?.type === "spotlight") {
+      return snapPoint1.type === "mounting"
+    }
+    
+    // Rule 6: Power snap points for general electrical connections
+    if (snapPoint1.type === "power" || snapPoint2.type === "power") {
+      return snapPoint1.type === "power" && snapPoint2.type === "power"
+    }
+    
+    // No other combinations are allowed by default
+    console.log(`🚫 SNAP POINT COMPATIBILITY REJECTED:`, {
+      snapPoint1: { type: snapPoint1.type, component: component1?.type },
+      snapPoint2: { type: snapPoint2.type, component: component2?.type },
+      reason: "No matching compatibility rule found"
+    })
+    
+    return false
   },
 
   // Check if a snap point is already connected to another component
@@ -136,36 +187,18 @@ export const snapLogic = {
     return component.connections || []
   },
 
-  // PERFECT PRECISION Calculate position for connecting component to a snap point
+  // PERFECT ALIGNMENT: Calculate position and rotation for connecting component to a snap point
   calculateConnectionPosition: (
     sourceComponent: Component,
     sourceSnapPoint: SnapPoint,
     targetComponent: Component | null,
     targetSnapPoint: SnapPoint | null
   ): { position: [number, number, number]; rotation: [number, number, number] } => {
-    console.log(`🔗 PERFECT PRECISION SNAP CALCULATION START:`, {
-      sourceComponent: {
-        name: sourceComponent.name,
-        type: sourceComponent.type,
-        position: sourceComponent.position,
-        rotation: sourceComponent.rotation,
-        scale: sourceComponent.scale
-      },
-      sourceSnapPoint: {
-        name: sourceSnapPoint.name,
-        position: sourceSnapPoint.position,
-        type: sourceSnapPoint.type
-      },
-      targetComponent: {
-        name: targetComponent?.name || 'Unknown',
-        type: targetComponent?.type || 'Unknown',
-        scale: targetComponent?.scale || [1, 1, 1],
-        rotation: targetComponent?.rotation || [0, 0, 0]
-      },
-      targetSnapPoint: {
-        name: targetSnapPoint?.name || 'Unknown',
-        position: targetSnapPoint?.position || [0, 0, 0]
-      }
+    console.log(`🔗 PERFECT ALIGNMENT CALCULATION START:`, {
+      sourceComponent: sourceComponent.name,
+      sourceSnapPoint: sourceSnapPoint.name,
+      targetComponent: targetComponent?.name || 'Unknown',
+      targetSnapPoint: targetSnapPoint?.name || 'Unknown'
     })
 
     // Safety check for required parameters
@@ -177,215 +210,208 @@ export const snapLogic = {
       }
     }
 
-    // STEP 1: Calculate source snap point world position with PERFECT precision
-    const sourceWorldPosition = snapLogic.getWorldSnapPointPosition(sourceComponent, sourceSnapPoint)
-    console.log(`🌍 SOURCE SNAP POINT WORLD POSITION (PERFECT PRECISION):`, sourceWorldPosition)
+    // STEP 1: Get source snap point world position (where we want to connect TO)
+    const sourceWorldPos = snapLogic.getWorldSnapPointPosition(sourceComponent, sourceSnapPoint)
+    const sourceWorldRot = snapLogic.getWorldSnapPointRotation(sourceComponent, sourceSnapPoint)
     
-    // STEP 2: CRITICAL FIX - Calculate target snap point offset using direct vector math
-    // This avoids transformation matrices entirely to prevent floating point drift
-    const targetRotation = targetComponent.rotation || [0, 0, 0]
-    const targetScale = targetComponent.scale || [1, 1, 1]
-    const targetSnapOffset = targetSnapPoint.position || [0, 0, 0]
-    
-    console.log(`🔄 TARGET COMPONENT DIRECT CALCULATION:`, {
-      rotation: targetRotation,
-      rotationDegrees: [
-        (targetRotation[0] * 180 / Math.PI).toFixed(6),
-        (targetRotation[1] * 180 / Math.PI).toFixed(6),
-        (targetRotation[2] * 180 / Math.PI).toFixed(6)
-      ],
-      scale: targetScale,
-      snapOffset: targetSnapOffset
+    console.log(`🌍 SOURCE SNAP POINT:`, {
+      worldPosition: sourceWorldPos,
+      worldRotation: sourceWorldRot
     })
     
-    // DIRECT VECTOR CALCULATION - No transformation matrices!
-    // Apply rotation manually using trigonometry for perfect precision
-    const [rx, ry, rz] = targetRotation
-    const [sx, sy, sz] = targetScale
-    const [ox, oy, oz] = targetSnapOffset
+    // STEP 2: Calculate what the target component's position should be
+    // so that its snap point world position exactly matches the source snap point
     
-    // Scale the offset first (simple multiplication - no floating point issues)
-    const scaledOffset: [number, number, number] = [ox * sx, oy * sy, oz * sz]
+    // We need to solve: sourceWorldPos = targetPos + transformedTargetSnapPoint
+    // Therefore: targetPos = sourceWorldPos - transformedTargetSnapPoint
     
-    // Apply rotation using direct trigonometry (Euler ZYX order)
-    const cosX = Math.cos(rx), sinX = Math.sin(rx)
-    const cosY = Math.cos(ry), sinY = Math.sin(ry)
-    const cosZ = Math.cos(rz), sinZ = Math.sin(rz)
+    const targetScale = targetComponent.scale || [1, 1, 1]
+    const targetSnapLocal = targetSnapPoint.position || [0, 0, 0]
     
-    // Rotation matrix multiplication done manually for maximum precision
-    const [x, y, z] = scaledOffset
+    // For perfect alignment, we start with the assumption that components have the same orientation
+    // then we'll adjust for special cases
+    let targetRotation: [number, number, number] = [0, 0, 0]
     
-    // Apply Z rotation
-    const xAfterZ = x * cosZ - y * sinZ
-    const yAfterZ = x * sinZ + y * cosZ
-    const zAfterZ = z
+    // STEP 3: Determine proper orientation based on component types and source direction
+    const sourceIsCeilingConnector = sourceComponent.type.includes('connector') && sourceComponent.position[1] > 2.5
+    const sourceIsEasyLinkEndCap = sourceComponent.name?.toLowerCase().includes('easy link end cap white')
+    const sourceIsTrack = sourceComponent.type.includes('track') || sourceComponent.type.includes('profile')
+    const targetIsTrack = targetComponent.type.includes('track') || targetComponent.type.includes('profile')
+    const targetIsEndCap = targetComponent.name?.toLowerCase().includes('easy link end cap white') || 
+                          (targetComponent.type.includes('connector') && targetComponent.name?.toLowerCase().includes('cap'))
+    const targetIsPendant = targetComponent.type.includes('spotlight') && 
+                           targetComponent.name?.toLowerCase().includes('pendant')
     
-    // Apply Y rotation
-    const xAfterY = xAfterZ * cosY + zAfterZ * sinY
-    const yAfterY = yAfterZ
-    const zAfterY = -xAfterZ * sinY + zAfterZ * cosY
+    console.log(`🔍 COMPONENT TYPE ANALYSIS:`, {
+      sourceIsCeilingConnector,
+      sourceIsEasyLinkEndCap,
+      sourceIsTrack,
+      targetIsTrack,
+      targetIsEndCap,
+      targetIsPendant,
+      sourceType: sourceComponent.type,
+      targetType: targetComponent.type
+    })
     
-    // Apply X rotation
-    const xFinal = xAfterY
-    const yFinal = yAfterY * cosX - zAfterY * sinX
-    const zFinal = yAfterY * sinX + zAfterY * cosX
+    if (targetIsTrack && (sourceIsCeilingConnector || sourceIsEasyLinkEndCap)) {
+      // FIX: Calculate track direction based on source component's orientation
+      // The track should extend in the direction the cap/connector is facing
+      
+      // Get the source component's rotation to determine the facing direction
+      const sourceRotation = sourceComponent.rotation || [0, 0, 0]
+      
+      // For tracks, we want them to be horizontal (lying flat) but oriented correctly
+      // The X rotation makes it horizontal, Y rotation controls the direction
+      targetRotation = [
+        Math.PI / 2,  // X: 90° to make track horizontal (lying flat)
+        sourceRotation[1], // Y: Use source's Y rotation to match direction
+        sourceRotation[2]  // Z: Use source's Z rotation if any
+      ]
+      
+      console.log(`🎯 CORRECTED TRACK DIRECTION CALCULATION:`, {
+          sourceComponent: sourceComponent.name,
+          sourceSnapPoint: sourceSnapPoint.name,
+          sourceRotation: {
+            radians: [sourceRotation[0].toFixed(4), sourceRotation[1].toFixed(4), sourceRotation[2].toFixed(4)],
+            degrees: [(sourceRotation[0] * 180 / Math.PI).toFixed(1), (sourceRotation[1] * 180 / Math.PI).toFixed(1), (sourceRotation[2] * 180 / Math.PI).toFixed(1)]
+          },
+          finalRotation: {
+            radians: [targetRotation[0].toFixed(4), targetRotation[1].toFixed(4), targetRotation[2].toFixed(4)],
+            degrees: [(targetRotation[0] * 180 / Math.PI).toFixed(1), (targetRotation[1] * 180 / Math.PI).toFixed(1), (targetRotation[2] * 180 / Math.PI).toFixed(1)]
+          },
+          reasoning: "Track inherits source component's Y and Z rotation for correct direction"
+        })
+      
+    } else if (sourceIsTrack && targetIsEndCap) {
+      // SPECIAL CASE: Track connecting to end cap
+      // The cap should face back toward the track, and only the cap's tail should overlap
+      
+      // Get the source track's rotation 
+      const sourceRotation = sourceComponent.rotation || [0, 0, 0]
+      
+      // Cap should face opposite direction to the track's extension direction
+      // If track is horizontal and extending in +X direction, cap should face -X direction
+      targetRotation = [
+        0,                          // X: Keep cap upright (not tilted)
+        sourceRotation[1] + Math.PI, // Y: Face opposite direction (180° rotation)
+        sourceRotation[2]           // Z: Use same Z rotation as track
+      ]
+      
+      console.log(`🎯 TRACK-TO-CAP CONNECTION CALCULATION:`, {
+        sourceComponent: sourceComponent.name,
+        targetComponent: targetComponent.name,
+        sourceRotation: {
+          radians: [sourceRotation[0].toFixed(4), sourceRotation[1].toFixed(4), sourceRotation[2].toFixed(4)],
+          degrees: [(sourceRotation[0] * 180 / Math.PI).toFixed(1), (sourceRotation[1] * 180 / Math.PI).toFixed(1), (sourceRotation[2] * 180 / Math.PI).toFixed(1)]
+        },
+        targetRotation: {
+          radians: [targetRotation[0].toFixed(4), targetRotation[1].toFixed(4), targetRotation[2].toFixed(4)],
+          degrees: [(targetRotation[0] * 180 / Math.PI).toFixed(1), (targetRotation[1] * 180 / Math.PI).toFixed(1), (targetRotation[2] * 180 / Math.PI).toFixed(1)]
+        },
+        reasoning: "Cap faces opposite to track direction for proper end connection"
+      })
+      
+    } else if (targetIsPendant) {
+      // Pendant lamps should hang vertically with snap point on top
+      targetRotation = [Math.PI/2, 0, 0] // 90° X rotation to make vertical
+      console.log(`🎯 PENDANT VERTICAL ORIENTATION`)
+      
+    } else {
+      // For other components, maintain default orientation
+      targetRotation = [0, 0, 0]
+      console.log(`🎯 DEFAULT ORIENTATION`)
+    }
     
-    // Round to prevent any floating point drift (use exact decimal precision)
-    const transformedOffset: [number, number, number] = [
-      Math.round(xFinal * 1000000000000) / 1000000000000,
-      Math.round(yFinal * 1000000000000) / 1000000000000,
-      Math.round(zFinal * 1000000000000) / 1000000000000
+    // STEP 4: Calculate target component position for perfect snap point alignment
+    
+    // Create transformation matrix for the target component with its final rotation
+    const targetRotMatrix = new THREE.Matrix4().makeRotationFromEuler(
+      new THREE.Euler(targetRotation[0], targetRotation[1], targetRotation[2], 'XYZ')
+    )
+    
+    const targetScaleMatrix = new THREE.Matrix4().makeScale(
+      targetScale[0], targetScale[1], targetScale[2]
+    )
+    
+    // Combined transform (without translation)
+    const targetTransformMatrix = new THREE.Matrix4()
+      .multiplyMatrices(targetRotMatrix, targetScaleMatrix)
+    
+    // Transform the target snap point from local to "component" space (before final translation)
+    const targetSnapLocalVector = new THREE.Vector3(
+      targetSnapLocal[0], targetSnapLocal[1], targetSnapLocal[2]
+    )
+    
+    const transformedTargetSnap = targetSnapLocalVector.applyMatrix4(targetTransformMatrix)
+    
+    console.log(`🔧 TRANSFORMED TARGET SNAP:`, {
+      localSnap: targetSnapLocal,
+      targetRotation,
+      targetScale,
+      transformedSnap: [transformedTargetSnap.x, transformedTargetSnap.y, transformedTargetSnap.z]
+    })
+    
+    // STEP 5: Calculate final target component position
+    // Position the target component so its transformed snap point matches source snap point exactly
+    const finalPosition: [number, number, number] = [
+      sourceWorldPos[0] - transformedTargetSnap.x,
+      sourceWorldPos[1] - transformedTargetSnap.y,
+      sourceWorldPos[2] - transformedTargetSnap.z
     ]
     
-    console.log(`🔧 TARGET SNAP POINT DIRECT CALCULATION RESULT (PERFECT PRECISION):`, {
-      originalOffset: targetSnapOffset,
-      scaledOffset: scaledOffset,
-      transformedOffset: transformedOffset,
-      rotationApplied: targetRotation
-    })
-    
-    // STEP 3: Calculate final position with ULTRA EXACT arithmetic for ABSOLUTE PERFECT overlap
-    // Convert to integer arithmetic (nanometer precision) to eliminate ALL floating point errors
-    const PRECISION_MULTIPLIER = 1000000000000000 // 15 decimal places = nanometer precision
-    
-    // Convert to integer arithmetic
-    const sourceWorldX = Math.round(sourceWorldPosition[0] * PRECISION_MULTIPLIER)
-    const sourceWorldY = Math.round(sourceWorldPosition[1] * PRECISION_MULTIPLIER)
-    const sourceWorldZ = Math.round(sourceWorldPosition[2] * PRECISION_MULTIPLIER)
-    
-    const transformedOffsetX = Math.round(transformedOffset[0] * PRECISION_MULTIPLIER)
-    const transformedOffsetY = Math.round(transformedOffset[1] * PRECISION_MULTIPLIER)
-    const transformedOffsetZ = Math.round(transformedOffset[2] * PRECISION_MULTIPLIER)
-    
-    // Calculate using exact integer arithmetic (ZERO floating point errors)
-    const finalPositionX = (sourceWorldX - transformedOffsetX) / PRECISION_MULTIPLIER
-    const finalPositionY = (sourceWorldY - transformedOffsetY) / PRECISION_MULTIPLIER
-    const finalPositionZ = (sourceWorldZ - transformedOffsetZ) / PRECISION_MULTIPLIER
-    
-    let finalPosition: [number, number, number] = [finalPositionX, finalPositionY, finalPositionZ]
-    
-    console.log(`📍 ULTRA PRECISION INTEGER ARITHMETIC RESULT:`, {
-      integerCalculation: {
-        sourceWorld: [sourceWorldX, sourceWorldY, sourceWorldZ],
-        transformedOffset: [transformedOffsetX, transformedOffsetY, transformedOffsetZ],
-        result: [sourceWorldX - transformedOffsetX, sourceWorldY - transformedOffsetY, sourceWorldZ - transformedOffsetZ]
-      },
+    console.log(`📍 CALCULATED POSITION:`, {
+      sourceWorldPos,
+      transformedTargetSnap: [transformedTargetSnap.x, transformedTargetSnap.y, transformedTargetSnap.z],
       finalPosition
     })
     
-    // STEP 4: Special ceiling mounting preservation with exact precision
-    const sourceIsCeilingConnector = sourceComponent.type.includes('connector') && sourceComponent.position[1] > 2.0
-    const targetIsTrack = targetComponent.type.includes('track') || targetComponent.type.includes('profile')
-    
-    console.log(`🔍 CEILING DETECTION:`, {
-      sourceIsCeilingConnector,
-      targetIsTrack,
-      sourcePosition: sourceComponent.position,
-      sourceType: sourceComponent.type
-    })
-    
-    if (sourceIsCeilingConnector && targetIsTrack) {
-      // Preserve exact ceiling level with perfect precision
-      const ceilingY = Math.round((sourceComponent.position[1] + 0.1) * 1000000000000) / 1000000000000
-      finalPosition = [finalPosition[0], ceilingY, finalPosition[2]]
-      
-      console.log(`🔧 CEILING CORRECTION APPLIED (PERFECT PRECISION):`, {
-        originalPosition: [sourceWorldPosition[0] - transformedOffset[0], sourceWorldPosition[1] - transformedOffset[1], sourceWorldPosition[2] - transformedOffset[2]],
-        correctedPosition: finalPosition,
-        reason: 'Forcing track to ceiling level for ceiling connector'
-      })
-    }
-    
-    console.log(`📍 FINAL PERFECT PRECISION POSITION:`, finalPosition)
-    
-    // STEP 5: Calculate rotation with intelligent orientation
-    let finalRotation: [number, number, number] = [0, 0, 0]
-    
-    const isTrackOrProfile = targetComponent.type.includes('track') || 
-                            targetComponent.type.includes('profile') ||
-                            targetComponent.type.includes('pipe')
-    
-    console.log(`🎯 ROTATION CALCULATION START:`, {
+    // STEP 6: FINALIZE ALIGNMENT WITH SPECIAL CASE HANDLING
+    const connectionType = sourceIsTrack && targetIsEndCap ? "Track-to-Cap with proper orientation" : "Standard snap alignment"
+    console.log(`🎯 CONNECTION ALIGNMENT COMPLETE:`, {
+      sourceWorldPos,
+      calculatedPosition: finalPosition,
+      targetRotation,
+      targetRotationDegrees: [(targetRotation[0] * 180 / Math.PI).toFixed(1), (targetRotation[1] * 180 / Math.PI).toFixed(1), (targetRotation[2] * 180 / Math.PI).toFixed(1)],
       componentType: targetComponent.type,
-      isTrackOrProfile,
-      sourceComponentType: sourceComponent.type,
-      sourcePosition: sourceComponent.position
-    })
-    
-    if (isTrackOrProfile) {
-      // Default to horizontal for track models (90° X-axis rotation)
-      let preferredRotation: [number, number, number] = [Math.PI/2, 0, 0]
-      
-      console.log(`🎯 DEFAULT HORIZONTAL ROTATION:`, preferredRotation, {
-        degrees: [(Math.PI/2 * 180 / Math.PI).toFixed(1), '0.0', '0.0']
-      })
-      
-      // Force horizontal for ceiling connectors
-      if (sourceIsCeilingConnector) {
-        preferredRotation = [Math.PI/2, 0, 0]
-        console.log(`🎯 CEILING CONNECTOR FORCES HORIZONTAL:`, preferredRotation)
-      }
-      
-      // Check boundary collision with perfect precision
-      const roomDimensions = { width: 8, length: 6, height: 3 }
-      const trackLength = 0.3 // 30cm
-      const halfLength = trackLength / 2
-      
-      const wouldHitWall = (
-        finalPosition[0] - halfLength < -roomDimensions.width/2 ||
-        finalPosition[0] + halfLength > roomDimensions.width/2 ||
-        finalPosition[2] - halfLength < -roomDimensions.length/2 ||
-        finalPosition[2] + halfLength > roomDimensions.length/2
-      )
-      
-      console.log(`🎯 BOUNDARY CHECK (PERFECT PRECISION):`, {
-        trackLength,
-        halfLength,
-        finalPosition,
-        roomDimensions,
-        wouldHitWall,
-        xRange: [finalPosition[0] - halfLength, finalPosition[0] + halfLength],
-        zRange: [finalPosition[2] - halfLength, finalPosition[2] + halfLength],
-        roomXRange: [-roomDimensions.width/2, roomDimensions.width/2],
-        roomZRange: [-roomDimensions.length/2, roomDimensions.length/2]
-      })
-      
-      if (wouldHitWall) {
-        // Vertical downward if horizontal hits walls
-        preferredRotation = [0, 0, 0]
-        console.log(`🎯 WALL COLLISION - VERTICAL DOWNWARD:`, preferredRotation)
-      }
-      
-      finalRotation = preferredRotation
-      
-    } else {
-      // Non-track components keep their original rotation
-      finalRotation = targetComponent.rotation || [0, 0, 0]
-      console.log(`🎯 NON-TRACK COMPONENT - ORIGINAL ROTATION:`, finalRotation)
-    }
-    
-    // Round rotation to avoid floating point drift with perfect precision
-    finalRotation = [
-      Math.round(finalRotation[0] * 1000000000000) / 1000000000000,
-      Math.round(finalRotation[1] * 1000000000000) / 1000000000000,
-      Math.round(finalRotation[2] * 1000000000000) / 1000000000000
-    ]
-    
-    console.log(`🔄 FINAL PERFECT PRECISION ROTATION:`, {
-      finalRotation,
-      finalRotationDegrees: [
-        (finalRotation[0] * 180 / Math.PI).toFixed(6),
-        (finalRotation[1] * 180 / Math.PI).toFixed(6),
-        (finalRotation[2] * 180 / Math.PI).toFixed(6)
-      ]
+      connectionType,
+      isTrack: targetIsTrack,
+      isEndCap: targetIsEndCap,
+      reasoning: sourceIsTrack && targetIsEndCap ? 
+        "Cap oriented to face track - snap points overlap, cap tail connects properly" : 
+        "Pure snap point alignment for perfect connection"
     })
     
     const result = {
       position: finalPosition,
-      rotation: finalRotation
+      rotation: targetRotation
     }
     
-    console.log(`✅ PERFECT PRECISION SNAP LOGIC RESULT:`, result)
+    console.log(`✅ PERFECT ALIGNMENT RESULT:`, result)
+    
+    // STEP 7: Verify alignment (for debugging)
+    const verificationWorldPos = snapLogic.getWorldSnapPointPosition(
+      { ...targetComponent, position: finalPosition, rotation: targetRotation },
+      targetSnapPoint
+    )
+    
+    const alignmentError = [
+      Math.abs(verificationWorldPos[0] - sourceWorldPos[0]),
+      Math.abs(verificationWorldPos[1] - sourceWorldPos[1]),
+      Math.abs(verificationWorldPos[2] - sourceWorldPos[2])
+    ]
+    
+    const maxError = Math.max(...alignmentError)
+    
+    console.log(`🎯 ALIGNMENT VERIFICATION:`, {
+      sourceWorldPos,
+      calculatedTargetSnapWorldPos: verificationWorldPos,
+      alignmentError,
+      maxError: maxError.toFixed(4),
+      isAligned: maxError < 0.01, // 1cm tolerance for all connections
+      targetRotation,
+      targetRotationDegrees: [(targetRotation[0] * 180 / Math.PI).toFixed(1), (targetRotation[1] * 180 / Math.PI).toFixed(1), (targetRotation[2] * 180 / Math.PI).toFixed(1)],
+      connectionType: sourceIsTrack && targetIsEndCap ? "Track-to-Cap (snap points overlap)" : "Standard snap alignment"
+    })
     
     return result
   },

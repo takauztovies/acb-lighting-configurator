@@ -84,11 +84,13 @@ export default withCorsAndSecurityHeaders(async function handler(req: NextApiReq
       case 'DELETE': {
         const { id } = req.query
         await prisma.bundle.delete({ where: { id: String(id) } })
-        return res.status(204).end()
+        res.status(204).end()
+        return
       }
       default:
         res.setHeader('Allow', ['GET', 'POST', 'PUT', 'DELETE'])
-        return res.status(405).end(`Method ${req.method} Not Allowed`)
+        res.status(405).end(`Method ${req.method} Not Allowed`)
+        return
     }
   } catch (error) {
     console.error('API Error:', error)

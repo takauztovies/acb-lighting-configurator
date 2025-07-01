@@ -70,7 +70,7 @@ interface ComponentInput {
   model3d?: string
   image?: string
   cardImage?: string
-  specifications?: string
+  specifications?: any  // Can be object or string
   price?: number
   snapPoints?: SnapPointInput[]
 }
@@ -92,6 +92,14 @@ interface ExtendedComponent {
 
 const ALLOWED_MODEL_EXTENSIONS = ['.obj']
 const MAX_MODEL_FILE_SIZE = 10 * 1024 * 1024 // 10MB
+
+// Helper function to properly serialize specifications
+function serializeSpecifications(specs: any): string | null {
+  if (!specs) return null
+  if (typeof specs === 'string') return specs
+  if (typeof specs === 'object' && Object.keys(specs).length === 0) return null
+  return JSON.stringify(specs)
+}
 
 export default withCorsAndSecurityHeaders(async function handler(req: NextApiRequest, res: NextApiResponse) {
   // Only require admin authentication for write operations
@@ -202,7 +210,7 @@ export default withCorsAndSecurityHeaders(async function handler(req: NextApiReq
               model3dUrl: input.model3d,
               imageUrl: input.image,
               cardImageUrl: input.cardImage,
-              metadata: input.specifications ? JSON.stringify(input.specifications) : null,
+              metadata: serializeSpecifications(input.specifications),
               price: Number(input.price) || 0,
               snapPoints: {
                 create: input.snapPoints?.map(sp => ({
@@ -249,7 +257,7 @@ export default withCorsAndSecurityHeaders(async function handler(req: NextApiReq
               model3dUrl: input.model3d,
               imageUrl: input.image,
               cardImageUrl: input.cardImage,
-              metadata: input.specifications ? JSON.stringify(input.specifications) : null,
+              metadata: serializeSpecifications(input.specifications),
               price: Number(input.price) || 0,
               snapPoints: {
                 create: input.snapPoints?.map(sp => ({
@@ -305,7 +313,7 @@ export default withCorsAndSecurityHeaders(async function handler(req: NextApiReq
             model3dUrl: input.model3d,
             imageUrl: input.image,
             cardImageUrl: input.cardImage,
-            metadata: input.specifications ? JSON.stringify(input.specifications) : null,
+            metadata: serializeSpecifications(input.specifications),
             price: Number(input.price) || 0,
             snapPoints: {
               deleteMany: {},
@@ -327,17 +335,34 @@ export default withCorsAndSecurityHeaders(async function handler(req: NextApiReq
       case 'DELETE': {
         const { id } = req.query
         
-        // Delete component and related data (snap points will be deleted automatically due to onDelete: Cascade)
-        await prisma.component.delete({
-          where: { id: String(id) }
-        })
+        if (!id || id === 'undefined') {
+          return res.status(400).json({ error: 'Component ID is required for deletion' })
+        }
         
-        return res.status(204).end()
+        try {
+          // Check if component exists before attempting to delete
+          const existing = await prisma.component.findUnique({ where: { id: String(id) } })
+          if (!existing) {
+            return res.status(404).json({ error: 'Component not found' })
+          }
+          
+          // Delete component and related data (snap points will be deleted automatically due to onDelete: Cascade)
+          await prisma.component.delete({
+            where: { id: String(id) }
+          })
+          
+          res.status(204).end()
+          return // Explicitly return void to prevent "API handler should not return a value" warning
+        } catch (error) {
+          console.error('Delete error:', error)
+          return res.status(500).json({ error: 'Failed to delete component' })
+        }
       }
       
       default:
         res.setHeader('Allow', ['GET', 'POST', 'PUT', 'DELETE'])
-        return res.status(405).end(`Method ${req.method} Not Allowed`)
+        res.status(405).end(`Method ${req.method} Not Allowed`)
+        return
     }
   } catch (error) {
     console.error('API Error:', error)

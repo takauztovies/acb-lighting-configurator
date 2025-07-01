@@ -81,24 +81,25 @@ export function GuidedComponentPlacement({ setupData, onComplete }: GuidedCompon
   const calculateInitialPosition = (componentType: string): [number, number, number] => {
     const room = state.roomDimensions || { width: 8, length: 6, height: 3 }
     
-    // CRITICAL FIX: For connectors (Easy Link End Cap), use EXACT socket position without modifications
+    // CRITICAL FIX: For connectors (Easy Link End Cap), ensure FLUSH ceiling mounting
     if (componentType === "connector") {
-      let socketPosition: [number, number, number] = [0, room.height - 0.1, 0] // Default ceiling position
+      let socketPosition: [number, number, number] = [0, room.height - 0.01, 0] // FLUSH with ceiling (only 1cm gap)
       
       if (setupData?.socketPosition) {
-        // Use EXACT socket position from setup data - no modifications!
+        // Force ceiling level for Easy Link End Cap White - it MUST be flush with ceiling
         socketPosition = [
           setupData.socketPosition.x,
-          setupData.socketPosition.y, // Use exact Y coordinate from socket selector
+          room.height - 0.01, // FORCE ceiling level regardless of socket selector Y
           setupData.socketPosition.z
         ]
         
-        console.log(`🎯 CONNECTOR USING EXACT SOCKET POSITION:`, socketPosition, {
-          originalSocketData: setupData.socketPosition,
-          noModifications: true
+        console.log(`🎯 CONNECTOR FORCED TO CEILING LEVEL:`, socketPosition, {
+          originalSocketY: setupData.socketPosition.y,
+          forcedCeilingY: room.height - 0.01,
+          reason: "Easy Link End Cap must be flush with ceiling"
         })
       } else {
-        console.log(`🎯 CONNECTOR USING DEFAULT CEILING POSITION:`, socketPosition)
+        console.log(`🎯 CONNECTOR USING FLUSH CEILING POSITION:`, socketPosition)
       }
       
       return socketPosition
@@ -150,10 +151,10 @@ export function GuidedComponentPlacement({ setupData, onComplete }: GuidedCompon
       }
     } else if (componentType === "track") {
       // Track models need 90° X-axis rotation to appear horizontal
-      initialRotation = [Math.PI/2, 0, 0]  // 90° around X-axis for horizontal tracks
-      console.log(`🔄 TRACK ROTATION SET TO HORIZONTAL:`, initialRotation, {
-        degrees: [(Math.PI/2 * 180 / Math.PI).toFixed(1), '0.0', '0.0']
-      })
+      initialRotation = [0, 0, 0]  // FIXED: Horizontal tracks need NO rotation
+              console.log(`🔄 TRACK ROTATION SET TO HORIZONTAL:`, initialRotation, {
+          degrees: ['0.0', '0.0', '0.0']
+        })
     } else if (componentType === "spotlight") {
       // CRITICAL FIX: For pendant lamps, especially Pipe Pendant lamp, should be vertical with snap point on top
       if (componentTemplate.name?.toLowerCase().includes('pipe') && 
@@ -223,11 +224,13 @@ export function GuidedComponentPlacement({ setupData, onComplete }: GuidedCompon
       // You could show a toast notification here
     }
 
-    // Apply default scale for specific components
+    // Apply default scale from component specifications or use fallback
     let finalScale = scale
-    if (componentTemplate.name?.toLowerCase().includes('easy link end cap white') || 
-        componentTemplate.name?.toLowerCase().includes('connector')) {
-      finalScale = [0.5, 0.5, 0.5] // 50% scale for end caps
+    if (componentTemplate.specifications?.scale) {
+      // Use scale from component database metadata
+      const dbScale = componentTemplate.specifications.scale
+      finalScale = [dbScale, dbScale, dbScale]
+      console.log(`🔧 Using database scale for ${componentTemplate.name}:`, finalScale)
     }
 
     // Create new component with constrained position and rotation
@@ -307,14 +310,14 @@ export function GuidedComponentPlacement({ setupData, onComplete }: GuidedCompon
       return
     }
     
-    // Find compatible snap point on target component
+    // Find compatible snap point on target component using the updated snap logic
     const targetSnapPoint = componentTemplate.snapPoints?.find((sp: any) => {
-      // Check direct type compatibility
-      if (sp.type === sourceSnapPoint.type) return true
-      // Check compatible types
-      if (sourceSnapPoint.compatibleTypes?.includes(sp.type)) return true
-      if (sp.compatibleTypes?.includes(sourceSnapPoint.type)) return true
-      return false
+      // Use the new snap logic compatibility check with component context
+      return snapLogic.areSnapPointsCompatible(sourceSnapPoint, sp, sourceComponent, {
+        ...componentTemplate,
+        type: componentTemplate.type,
+        snapPoints: componentTemplate.snapPoints
+      } as any)
     })
     
     if (!targetSnapPoint) {
@@ -338,9 +341,11 @@ export function GuidedComponentPlacement({ setupData, onComplete }: GuidedCompon
         console.log(`🔄 SNAP OTHER CONNECTOR ROTATION SET TO NATURAL:`, baseRotation)
       }
     } else if (componentTemplate.type === "track") {
-      baseRotation = [Math.PI/2, 0, 0] // Track models need 90° X-axis to be horizontal
-      console.log(`🔄 SNAP TRACK ROTATION SET TO HORIZONTAL:`, baseRotation, {
-        degrees: [(Math.PI/2 * 180 / Math.PI).toFixed(1), '0.0', '0.0']
+      // LET SNAP LOGIC HANDLE TRACK ROTATION - No override!
+      baseRotation = [0, 0, 0] // This will be overridden by snap logic calculation
+      console.log(`🔄 SNAP TRACK ROTATION - WILL BE CALCULATED BY SNAP LOGIC:`, baseRotation, {
+        degrees: ['0.0', '0.0', '0.0'],
+        note: 'This base rotation will be overridden by snap logic calculation'
       })
     } else if (componentTemplate.type === "spotlight") {
       // CRITICAL FIX: For pendant lamps, especially Pipe Pendant lamp, should be vertical with snap point on top
@@ -370,11 +375,11 @@ export function GuidedComponentPlacement({ setupData, onComplete }: GuidedCompon
     const defaultScale = componentTemplate.specifications?.scale || 1
     let componentScale: [number, number, number] = [defaultScale, defaultScale, defaultScale]
     
-    if (componentTemplate.name?.toLowerCase().includes('easy link end cap white') || 
-        componentTemplate.name?.toLowerCase().includes('connector')) {
-      componentScale = [0.5, 0.5, 0.5] // 50% scale for end caps
-      console.log(`🔧 CONNECTOR SCALE APPLIED:`, componentScale)
-    }
+    console.log(`🔧 Using component scale from database:`, {
+      componentName: componentTemplate.name,
+      databaseScale: componentTemplate.specifications?.scale,
+      finalScale: componentScale
+    })
 
     console.log(`📏 FINAL COMPONENT SCALE:`, componentScale)
 
@@ -404,6 +409,7 @@ export function GuidedComponentPlacement({ setupData, onComplete }: GuidedCompon
       targetSnapPointPosition: targetSnapPoint.position
     })
     
+    // CRITICAL FIX: Use the improved snap logic for perfect alignment
     const connectionData = snapLogic.calculateConnectionPosition(
       sourceComponent,
       sourceSnapPoint,
@@ -411,11 +417,13 @@ export function GuidedComponentPlacement({ setupData, onComplete }: GuidedCompon
       targetSnapPoint
     )
 
-    console.log(`🎯 SNAP POINT FINAL CALCULATED POSITION:`, {
+    console.log(`🎯 PERFECT SNAP ALIGNMENT RESULT:`, {
       calculatedPosition: connectionData.position,
       calculatedRotation: connectionData.rotation,
       sourceSnapPointName: sourceSnapPoint.name,
-      targetSnapPointName: targetSnapPoint.name
+      targetSnapPointName: targetSnapPoint.name,
+      sourceComponent: sourceComponent.name,
+      targetComponent: tempTargetComponent.name
     })
 
     // CRITICAL FIX: Do NOT apply boundary constraints for snap point connections!
@@ -465,9 +473,11 @@ export function GuidedComponentPlacement({ setupData, onComplete }: GuidedCompon
   }
 
   // Handle component selection
-  const handleComponentSelect = async (componentType: string) => {
-    console.log(`🎯 COMPONENT TYPE SELECTED for placement:`, {
-      componentType,
+  const handleComponentSelect = async (component: LightComponent) => {
+    console.log(`🎯 SPECIFIC COMPONENT SELECTED for placement:`, {
+      componentId: component.id,
+      componentName: component.name,
+      componentType: component.type,
       hasSelectedSnapPoint: !!state.selectedSnapPoint,
       selectedSnapPoint: state.selectedSnapPoint,
       existingComponentsCount: state.currentConfig.components.length
@@ -475,31 +485,26 @@ export function GuidedComponentPlacement({ setupData, onComplete }: GuidedCompon
     
     // CRITICAL VALIDATION: Check if this is the first component placement
     if (state.currentConfig.components.length === 0 && !state.selectedSnapPoint) {
-      const componentTemplate = availableComponents.find((c) => c.type === componentType)
-      
-      if (!componentTemplate?.name?.toLowerCase().includes('easy link end cap white')) {
+      if (!component.name?.toLowerCase().includes('easy link end cap white')) {
         console.error(`❌ FIRST COMPONENT RESTRICTION: Only Easy Link End Cap White can be placed first!`)
         alert('Please start with the Easy Link End Cap White component. This is the starting point for your lighting system.')
         return
       }
       
-      console.log(`✅ FIRST COMPONENT VALIDATION PASSED: Easy Link End Cap White selected`)
-    }
-    
-    const componentTemplate = availableComponents.find((c) => c.type === componentType)
-    if (!componentTemplate) {
-      console.error(`❌ Component template not found for type: ${componentType}`)
-      return
+      console.log(`✅ FIRST COMPONENT VALIDATION PASSED: Easy Link End Cap White selected`, {
+        componentName: component.name,
+        componentType: component.type
+      })
     }
 
     if (state.selectedSnapPoint) {
       // We have a snap point selected - place component there
       console.log(`🔗 Placing component via snap point attachment`)
-      await handleSnapPointPlacement(componentTemplate as LightComponent)
+      await handleSnapPointPlacement(component)
     } else {
       // No snap point selected - place at calculated position
       console.log(`📍 Placing component at calculated position`)
-      await handleDirectComponentPlacement(componentType, componentTemplate as LightComponent)
+      await handleDirectComponentPlacement(component.type, component)
     }
   }
 
@@ -520,10 +525,20 @@ export function GuidedComponentPlacement({ setupData, onComplete }: GuidedCompon
     const sourceComponent = state.currentConfig.components.find((c) => c.id === state.selectedSnapPoint!.componentId)
     const snapPoint = sourceComponent?.snapPoints?.find((sp) => sp.id === state.selectedSnapPoint!.snapPointId)
 
-    if (!snapPoint || !snapPoint.compatibleTypes) return availableComponents
+    if (!snapPoint || !sourceComponent) return availableComponents
 
-    // Filter components by compatibility
-    return availableComponents.filter((component) => snapPoint.compatibleTypes?.includes(component.type))
+    // Filter components by the new strict compatibility rules
+    return availableComponents.filter((component) => {
+      // Check if any snap point on this component is compatible with the selected snap point
+      return component.snapPoints?.some((targetSnapPoint) => {
+        const { snapLogic } = require("@/lib/snap-logic")
+        return snapLogic.areSnapPointsCompatible(snapPoint, targetSnapPoint, sourceComponent, {
+          type: component.type,
+          name: component.name,
+          snapPoints: component.snapPoints
+        })
+      }) || false
+    })
   }
 
   const compatibleComponents = getCompatibleComponents()
@@ -639,7 +654,7 @@ export function GuidedComponentPlacement({ setupData, onComplete }: GuidedCompon
                         : "hover:bg-blue-50"
                       : "opacity-50 cursor-not-allowed"
                   }`}
-                  onClick={() => isCompatible && handleComponentSelect(component.type)}
+                  onClick={() => isCompatible && handleComponentSelect(component)}
                 >
                   <CardContent className="p-3">
                     <div className="flex items-center gap-3">

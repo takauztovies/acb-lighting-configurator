@@ -198,34 +198,55 @@ export function InteractiveComponent3D({
 
           // CRITICAL FIX: Sanitize the loaded model to remove any text nodes or invalid objects
           const sanitizeObject = (obj: THREE.Object3D) => {
-            // Remove any children that aren't valid Three.js objects
+            // Remove any children that aren't valid Three.js objects or contain text
             obj.children = obj.children.filter((child) => {
-              return child instanceof THREE.Object3D && child.type !== 'Text'
+              // Allow only standard Three.js objects
+              const validTypes = ['Mesh', 'Group', 'Object3D', 'Scene', 'Bone']
+              return (
+                child instanceof THREE.Object3D && 
+                validTypes.includes(child.type) &&
+                child.type !== 'Text' &&
+                child.constructor.name !== 'Text'
+              )
             })
             
             // Recursively sanitize children
             obj.children.forEach(child => sanitizeObject(child))
             
-            // Remove any user data that might contain text
+            // Clean up all userData that might contain problematic references
             if (obj.userData) {
-              delete obj.userData.text
-              delete obj.userData.name
-              delete obj.userData.mtl
+              obj.userData = {}
+            }
+            
+            // Remove any name property that might contain text
+            if (obj.name) {
+              obj.name = ''
             }
           }
           
           // Apply sanitization to the loaded object
           sanitizeObject(object)
           
-          // Also remove any material names that might contain text references
+          // Clean material references that might cause text issues
           object.traverse((child) => {
-            if (child instanceof THREE.Mesh && child.material) {
-              if (Array.isArray(child.material)) {
-                child.material.forEach(mat => {
-                  if (mat.name) delete mat.name
-                })
-              } else {
-                if (child.material.name) delete child.material.name
+            if (child instanceof THREE.Mesh) {
+              // Ensure clean material setup
+              if (child.material) {
+                if (Array.isArray(child.material)) {
+                  child.material.forEach(mat => {
+                    mat.name = ''
+                    if (mat.userData) mat.userData = {}
+                  })
+                } else {
+                  child.material.name = ''
+                  if (child.material.userData) child.material.userData = {}
+                }
+              }
+              
+              // Clean geometry references
+              if (child.geometry) {
+                child.geometry.name = ''
+                if (child.geometry.userData) child.geometry.userData = {}
               }
             }
           })
@@ -256,6 +277,9 @@ export function InteractiveComponent3D({
               // DO NOT center geometry - preserve original geometry positioning like snap editor
             }
           })
+
+          // REMOVED: Don't rotate the model itself as it breaks snap point positioning
+          // Track orientation should be handled at the component level, not model level
 
           // Simple scaling like snap editor - NO aggressive centering or repositioning
           const box = new THREE.Box3().setFromObject(object)
@@ -482,10 +506,10 @@ export function InteractiveComponent3D({
 
       {/* Component snap points - only show if component has defined snap points AND they are not connected */}
       {shouldShowSnapPoints && hasSnapPoints &&
-        // Only render unique, valid snap points by id that are NOT connected
+        // ENHANCED VISIBILITY: Only show snap points for selected components
+        // or when in snap point selection mode
         Array.from(new Map((component.snapPoints || []).filter(sp => sp && sp.id).map(sp => [sp.id, sp])).values())
           .filter((snapPoint) => {
-            // CRITICAL FIX: Hide snap points that are already connected
             if (!snapPoint || !snapPoint.id) return false
             
             // Check if this snap point is part of any connection
@@ -495,20 +519,35 @@ export function InteractiveComponent3D({
                                  (component.connections || []).includes(snapPoint.id)
                                )
             
-            // Hide connected snap points unless selected for debugging
-            const isDebugSelected = selectedSnapPoint?.componentId === component.id && 
-                                  selectedSnapPoint?.snapPointId === snapPoint.id
+            // Only show snap points for:
+            // 1. Selected component (when component is clicked)
+            // 2. Component with selected snap point (for debugging)
+            // 3. When in placement mode and component is compatible
+            const isComponentSelected = isSelected || isPrimary
+            const hasSelectedSnapPoint = selectedSnapPoint?.componentId === component.id
+            const isInPlacementMode = selectedSnapPoint && selectedSnapPoint.componentId !== component.id
             
-            const shouldShow = !isConnected || isDebugSelected
+            // Hide connected snap points unless it's the selected one
+            const isSelectedSnapPoint = selectedSnapPoint?.componentId === component.id && 
+                                      selectedSnapPoint?.snapPointId === snapPoint.id
             
-            console.log(`🔗 SNAP POINT VISIBILITY CHECK:`, {
+            const shouldShowForConnection = !isConnected || isSelectedSnapPoint
+            const shouldShowForVisibility = isComponentSelected || hasSelectedSnapPoint || isInPlacementMode
+            
+            const shouldShow = shouldShowForConnection && shouldShowForVisibility
+            
+            console.log(`🔗 ENHANCED SNAP POINT VISIBILITY:`, {
               componentId: component.id,
               snapPointId: snapPoint.id,
               snapPointName: snapPoint.name,
               isConnected,
-              connections: component.connections,
+              isComponentSelected,
+              hasSelectedSnapPoint,
+              isInPlacementMode,
+              shouldShowForConnection,
+              shouldShowForVisibility,
               shouldShow,
-              reason: isConnected ? 'Connected - hiding' : 'Not connected - showing'
+              reason: shouldShow ? 'Visible' : isConnected ? 'Connected - hidden' : 'Component not selected - hidden'
             })
             
             return shouldShow

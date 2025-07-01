@@ -105,8 +105,8 @@ export const boundarySystem = {
     
     console.log(`🔍 Track constraint check: y=${y}, ceiling=${height}, threshold=${ceilingThreshold}`)
     
-    // CRITICAL FIX: Use [Math.PI/2, 0, 0] for horizontal track orientation (90° around X-axis)
-    const horizontalRotation: [number, number, number] = [Math.PI/2, 0, 0]
+    // FIXED: Use [0, 0, 0] for horizontal track orientation (no rotation needed)
+    const horizontalRotation: [number, number, number] = [0, 0, 0]
     
     // Near ceiling - tracks should be horizontal and well below ceiling
     if (y > ceilingThreshold) {
@@ -325,8 +325,8 @@ export const boundarySystem = {
     if (component.type === 'track' && context.source !== 'manual-transform') {
       console.log(`🔍 Track constraint check: y=${y}, ceiling=${height}, threshold=${height * 0.85}`)
       
-      // CRITICAL FIX: Use [Math.PI/2, 0, 0] for horizontal track orientation (90° around X-axis)
-      const horizontalRotation: [number, number, number] = [Math.PI/2, 0, 0]
+      // FIXED: Use [0, 0, 0] for horizontal track orientation (no rotation needed)
+      const horizontalRotation: [number, number, number] = [0, 0, 0]
       
       if (y > height * 0.85) {
         // Near ceiling - tracks should run horizontally

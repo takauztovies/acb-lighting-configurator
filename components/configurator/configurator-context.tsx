@@ -4,6 +4,7 @@ import type React from "react"
 import { createContext, useContext, useReducer, useEffect, type ReactNode } from "react"
 import { db, type ComponentData } from "@/lib/database"
 import { boundarySystem } from "@/lib/boundary-system"
+import { snapLogic } from "@/lib/snap-logic"
 import * as THREE from "three"
 
 // Define types
@@ -424,8 +425,8 @@ function configuratorReducer(state: ConfiguratorState, action: Action): Configur
       
       // 🔥 ABSOLUTE OVERRIDE FOR TRACKS - FORCE HORIZONTAL ROTATION (but skip for snap point connections)
       if (action.component.type === "track" && !isFromSnapPoint) {
-        originalRotation = [Math.PI/2, 0, 0]  // CRITICAL FIX: Use 90° around X-axis for horizontal tracks
-        console.log(`🔥 TRACK ROTATION ABSOLUTE OVERRIDE: FORCED TO [${Math.PI/2}, 0, 0] (was [${action.component.rotation?.[0]}, ${action.component.rotation?.[1]}, ${action.component.rotation?.[2]}])`)
+        originalRotation = [0, 0, 0]  // FIXED: Horizontal tracks need NO rotation
+                  console.log(`🔥 TRACK ROTATION ABSOLUTE OVERRIDE: FORCED TO [0, 0, 0] (was [${action.component.rotation?.[0]}, ${action.component.rotation?.[1]}, ${action.component.rotation?.[2]}])`)
       } else if (action.component.type === "track" && isFromSnapPoint) {
         console.log(`🔒 PRESERVING SNAP POINT ROTATION for track: ${action.component.id} rotation=[${action.component.rotation?.[0]}, ${action.component.rotation?.[1]}, ${action.component.rotation?.[2]}]`)
       }
@@ -586,10 +587,15 @@ function configuratorReducer(state: ConfiguratorState, action: Action): Configur
       }
 
     case "SET_SELECTED_COMPONENT":
+      // Clear selected snap point when switching to a different component
+      const shouldClearSnapPoint = state.selectedSnapPoint && 
+                                 state.selectedSnapPoint.componentId !== action.componentId
+      
       return {
         ...state,
         selectedComponentId: action.componentId,
         selectedComponentIds: [action.componentId],
+        selectedSnapPoint: shouldClearSnapPoint ? null : state.selectedSnapPoint,
       }
 
     case "SET_SELECTED_COMPONENTS":
@@ -838,54 +844,87 @@ function configuratorReducer(state: ConfiguratorState, action: Action): Configur
 
       const sourceComponent = state.currentConfig.components.find((c) => c.id === componentId)
       const sourceSnapPoint = sourceComponent?.snapPoints?.find((sp) => sp.id === snapPointId)
-      const targetSnapPoint = action.component.snapPoints?.[0]
+      
+      // Find the best compatible snap point on the target component using strict rules
+      const targetSnapPoint = action.component.snapPoints?.find((sp) => {
+        // Import snap logic for compatibility check
+        const { snapLogic } = require("@/lib/snap-logic")
+        return snapLogic.areSnapPointsCompatible(sourceSnapPoint, sp, sourceComponent, {
+          type: action.component.type || 'unknown',
+          name: action.component.name || 'Unknown Component',
+          snapPoints: action.component.snapPoints
+        })
+      }) || action.component.snapPoints?.[0]
 
       if (!sourceComponent || !sourceSnapPoint || !targetSnapPoint) return state
 
-      // Calculate the final position by combining source component position and snap point offsets
-      const sourcePosition = sourceComponent.position
-      const sourceOffset = sourceSnapPoint.position
-      const targetOffset = targetSnapPoint.position
+      console.log(`🔗 CONFIGURATOR CONTEXT - PERFECT SNAP ALIGNMENT:`, {
+        sourceComponent: sourceComponent.name,
+        sourceSnapPoint: sourceSnapPoint.name,
+        targetComponent: action.component.name,
+        targetSnapPoint: targetSnapPoint.name
+      })
 
-      // Calculate the final position
-      const position: [number, number, number] = [
-        sourcePosition[0] + sourceOffset[0] - targetOffset[0],
-        sourcePosition[1] + sourceOffset[1] - targetOffset[1],
-        sourcePosition[2] + sourceOffset[2] - targetOffset[2],
-      ]
-
-      // Calculate the final rotation by combining source component rotation and snap point rotations
-      const sourceRotation = sourceComponent.rotation || [0, 0, 0]
-      const sourceSnapRotation = sourceSnapPoint.rotation || [0, 0, 0]
-      const targetSnapRotation = targetSnapPoint.rotation || [0, 0, 0]
-
-      // For tracks, ensure horizontal alignment by zeroing out X and Z rotations
-      let finalRotation: [number, number, number]
-      if (action.component.type === "track") {
-        finalRotation = [0, sourceRotation[1] + sourceSnapRotation[1] - targetSnapRotation[1], 0]
-      } else {
-        finalRotation = [
-          (sourceRotation[0] + sourceSnapRotation[0] - targetSnapRotation[0]) % (2 * Math.PI),
-          (sourceRotation[1] + sourceSnapRotation[1] - targetSnapRotation[1]) % (2 * Math.PI),
-          (sourceRotation[2] + sourceSnapRotation[2] - targetSnapRotation[2]) % (2 * Math.PI),
-        ]
-      }
-
-      // Create the new component with the calculated position and rotation
-      const newComponent: Component = {
+             // CRITICAL FIX: Use the new improved snap logic for perfect alignment
+      
+      // Calculate proper scale for the component from database metadata
+      const defaultScale = action.component.specifications?.scale || 1
+      let componentScale: [number, number, number] = [defaultScale, defaultScale, defaultScale]
+      
+      console.log(`🔧 Using component scale from database:`, {
+        componentName: action.component.name,
+        databaseScale: action.component.specifications?.scale,
+        finalScale: componentScale
+      })
+      
+      // Create temporary target component with proper scale and rotation
+      const tempTargetComponent: Component = {
         ...action.component,
-        id: `${action.component.type}-${Date.now()}`,
-        position,
-        rotation: finalRotation,
-        scale: [
-          action.component.specifications?.scale || 1,
-          action.component.specifications?.scale || 1,
-          action.component.specifications?.scale || 1
-        ] as [number, number, number],
+        id: `temp-${action.component.type}-${Date.now()}`,
+        position: [0, 0, 0], 
+        rotation: [0, 0, 0], 
+        scale: componentScale,
         connections: [],
         snapPoints: action.component.snapPoints || [],
         price: action.component.price || 0,
         properties: action.component.specifications || {}
+      }
+      
+      // Use the improved snap logic for perfect alignment
+      const connectionData = snapLogic.calculateConnectionPosition(
+        sourceComponent,
+        sourceSnapPoint,
+        tempTargetComponent,
+        targetSnapPoint
+      )
+      
+      console.log(`🎯 CONFIGURATOR PERFECT ALIGNMENT RESULT:`, {
+        calculatedPosition: connectionData.position,
+        calculatedRotation: connectionData.rotation,
+        sourceSnapPoint: sourceSnapPoint.name,
+        targetSnapPoint: targetSnapPoint.name
+      })
+
+      // Create the new component with the EXACT calculated position and rotation
+      const newComponent: Component = {
+        ...action.component,
+        id: `${action.component.type}-${Date.now()}`,
+        position: connectionData.position, // Use EXACT calculated position
+        rotation: connectionData.rotation, // Use EXACT calculated rotation
+        scale: componentScale,
+        connections: [sourceComponent.id], // Track connection
+        snapPoints: action.component.snapPoints || [],
+        price: action.component.price || 0,
+        properties: action.component.specifications || {},
+        initialPosition: connectionData.position,
+        initialRotation: connectionData.rotation,
+        initialScale: componentScale
+      }
+
+      // Update source component to include connection
+      const updatedSourceComponent = {
+        ...sourceComponent,
+        connections: [...(sourceComponent.connections || []), newComponent.id]
       }
 
       // Create a connection between the source and new component
@@ -900,13 +939,26 @@ function configuratorReducer(state: ConfiguratorState, action: Action): Configur
         }
       }
 
-      // Add the new component and connection
+      console.log(`✅ CONFIGURATOR CONTEXT - PERFECT SNAP PLACEMENT COMPLETE:`, {
+        newComponent: newComponent.name,
+        position: newComponent.position,
+        rotation: newComponent.rotation,
+        scale: newComponent.scale
+      })
+
+      // Add the new component and connection, and update the source component
       return {
         ...state,
         currentConfig: {
           ...state.currentConfig,
-          components: [...state.currentConfig.components, newComponent],
-          connections: [...state.currentConfig.connections, connection]
+          components: [
+            ...state.currentConfig.components.map(c => 
+              c.id === sourceComponent.id ? updatedSourceComponent : c
+            ),
+            newComponent
+          ],
+          connections: [...state.currentConfig.connections, connection],
+          totalPrice: state.currentConfig.totalPrice + newComponent.price
         },
         selectedSnapPoint: null,
         placementMode: false,
@@ -1026,11 +1078,11 @@ export function ConfiguratorProvider({ children }: { children: ReactNode }) {
     console.log("ConfiguratorContext: Provider mounted, loading components...")
     loadComponentsFromDatabase()
 
-    // Set up periodic refresh every 30 seconds
+    // Set up periodic refresh every 5 minutes (reduced from 30 seconds to prevent memory issues)
     const interval = setInterval(() => {
       console.log("ConfiguratorContext: Periodic refresh...")
       loadComponentsFromDatabase()
-    }, 30000)
+    }, 300000)
 
     // Listen for storage events (when admin panel saves components)
     const handleStorageChange = (e: StorageEvent) => {

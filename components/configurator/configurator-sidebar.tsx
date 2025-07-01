@@ -16,6 +16,7 @@ import { RoomDimensionsControl } from "./room-dimensions-control"
 import { CableCalculator } from "./cable-calculator"
 import { ComponentTileGrid, ComponentTile } from "./ComponentTileGrid"
 import { TransformControls } from "./transform-controls"
+import { SurfaceImageUploader } from "./surface-image-uploader"
 
 // Extended LightComponent to include bundle data
 interface ExtendedLightComponent extends LightComponent {
@@ -157,7 +158,7 @@ export function ConfiguratorSidebar() {
   // Show loading state with black and white colors
   if (state.isLoadingComponents) {
     return (
-      <div className="w-[420px] bg-white border-r border-gray-200 p-6 flex items-center justify-center">
+      <div className="w-[150px] bg-white border-r border-gray-200 p-2 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black mx-auto mb-4"></div>
           <p className="text-sm text-gray-600">{t("loading")}...</p>
@@ -170,7 +171,7 @@ export function ConfiguratorSidebar() {
   // Show error state
   if (state.componentLoadError) {
     return (
-      <div className="w-[420px] bg-white border-r border-gray-200 p-6">
+      <div className="w-[150px] bg-white border-r border-gray-200 p-2">
         <div className="text-center p-4">
           <AlertCircle className="h-8 w-8 text-red-500 mx-auto mb-2" />
           <p className="text-red-500 font-medium mb-2">{t("errorLoadingComponents")}</p>
@@ -189,19 +190,19 @@ export function ConfiguratorSidebar() {
   }
 
   return (
-    <div className="w-[420px] bg-white border-r border-gray-200 p-6 overflow-y-auto">
+    <div className="w-[150px] bg-white border-r border-gray-200 p-2 overflow-y-auto">
       {/* Native Tabs Implementation */}
       {(() => {
         const [activeTab, setActiveTab] = useState("components")
         return (
           <>
-            <div className="grid w-full grid-cols-6 h-10 mb-2">
-              <button className={`text-xs px-1 ${activeTab === "components" ? "font-bold border-b-2 border-black" : ""}`} onClick={() => setActiveTab("components")}>{t("components")}</button>
-              <button className={`text-xs px-1 ${activeTab === "room" ? "font-bold border-b-2 border-black" : ""}`} onClick={() => setActiveTab("room")}>Room</button>
-              <button className={`text-xs px-1 ${activeTab === "presets" ? "font-bold border-b-2 border-black" : ""}`} onClick={() => setActiveTab("presets")}>{t("presets")}</button>
-              <button className={`text-xs px-1 ${activeTab === "cables" ? "font-bold border-b-2 border-black" : ""}`} onClick={() => setActiveTab("cables")}>Cables</button>
-              <button className={`text-xs px-1 ${activeTab === "transform" ? "font-bold border-b-2 border-black" : ""}`} onClick={() => setActiveTab("transform")}>Transform</button>
-              <button className={`text-xs px-1 ${activeTab === "scene" ? "font-bold border-b-2 border-black" : ""}`} onClick={() => setActiveTab("scene")}>{t("scene")}</button>
+            <div className="grid w-full grid-cols-6 h-8 mb-2">
+              <button className={`text-[10px] px-0.5 ${activeTab === "components" ? "font-bold border-b-2 border-black" : ""}`} onClick={() => setActiveTab("components")}>Comp</button>
+              <button className={`text-[10px] px-0.5 ${activeTab === "room" ? "font-bold border-b-2 border-black" : ""}`} onClick={() => setActiveTab("room")}>Room</button>
+              <button className={`text-[10px] px-0.5 ${activeTab === "presets" ? "font-bold border-b-2 border-black" : ""}`} onClick={() => setActiveTab("presets")}>Presets</button>
+              <button className={`text-[10px] px-0.5 ${activeTab === "cables" ? "font-bold border-b-2 border-black" : ""}`} onClick={() => setActiveTab("cables")}>Cables</button>
+              <button className={`text-[10px] px-0.5 ${activeTab === "transform" ? "font-bold border-b-2 border-black" : ""}`} onClick={() => setActiveTab("transform")}>Trans</button>
+              <button className={`text-[10px] px-0.5 ${activeTab === "scene" ? "font-bold border-b-2 border-black" : ""}`} onClick={() => setActiveTab("scene")}>Scene</button>
             </div>
             {activeTab === "components" && (
               <div className="space-y-4">
@@ -338,37 +339,7 @@ export function ConfiguratorSidebar() {
             )}
             {activeTab === "scene" && (
               <div className="space-y-4">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-sm">{t("sceneBackground")}</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div>
-                      <label htmlFor="scene-upload" className="block text-sm font-medium mb-1">{t("uploadSceneImage")}</label>
-                      <Input
-                        id="scene-upload"
-                        type="file"
-                        accept="image/*"
-                        onChange={handleSceneImageUpload}
-                        className="mt-1"
-                      />
-                    </div>
-                    {state.sceneImageSettings &&
-                      Object.entries(state.sceneImageSettings).map(
-                        ([surface, imageData]) =>
-                          imageData && (
-                            <div key={surface} className="mt-2">
-                              <p className="text-xs text-gray-500 mb-1">{t(surface)}</p>
-                              <img
-                                src={imageData || "/placeholder.svg"}
-                                alt={`${surface} background`}
-                                className="w-full h-24 object-cover rounded-lg"
-                              />
-                            </div>
-                          ),
-                      )}
-                  </CardContent>
-                </Card>
+                <SurfaceImageUploader />
               </div>
             )}
           </>

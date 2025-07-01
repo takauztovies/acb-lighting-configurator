@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { Canvas } from "@react-three/fiber"
-import { OrbitControls, Environment } from "@react-three/drei"
+import { OrbitControls } from "@react-three/drei"
 import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js"
 import * as THREE from "three"
 import { Box } from "lucide-react"
@@ -50,12 +50,7 @@ function ModelMesh({ url }: { url: string }) {
             }
           })
           
-          console.log('🎨 Enhanced ModelPreview loaded with enhanced properties:', {
-            metalness: 0.1,
-            roughness: 0.8,
-            side: 'DoubleSide',
-            lighting: 'City environment with enhanced lighting'
-          });
+          // Model loaded successfully - reduced logging to prevent spam
           
           setObj(object)
         },
@@ -144,12 +139,12 @@ export function ModelPreview({ modelData, filename, className = "" }: ModelPrevi
         style={{ width: "100%", height: "100%" }}
         shadows
       >
-        {/* Enhanced lighting setup matching snap points editor */}
-        <Environment preset="city" />
-        <ambientLight intensity={0.6} />
+        {/* Memory-optimized lighting setup - no HDR environment to prevent allocation failures */}
+        <ambientLight intensity={0.4} />
         <directionalLight position={[5, 5, 5]} intensity={0.8} castShadow />
         <directionalLight position={[-5, 5, -5]} intensity={0.4} />
-        <hemisphereLight intensity={0.3} />
+        <directionalLight position={[0, 10, 0]} intensity={0.3} />
+        <hemisphereLight args={["#87CEEB", "#362d1a", 0.4]} />
 
         {blobUrl && <ModelMesh url={blobUrl} />}
 

@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
+import { Badge } from "@/components/ui/badge"
 import { 
   Move3D, 
   ArrowUp, 
@@ -18,8 +19,11 @@ import {
   FlipVertical,
   RefreshCw,
   ChevronUp,
-  ChevronDown
+  ChevronDown,
+  Target,
+  Circle
 } from "lucide-react"
+import { useConfigurator } from "./configurator-context"
 
 interface TransformControlsProps {
   selectedComponentId: string | null
@@ -43,9 +47,15 @@ export function TransformControls({
   onTransform, 
   currentTransform 
 }: TransformControlsProps) {
+  const { state, dispatch } = useConfigurator()
   const [position, setPosition] = useState<[number, number, number]>([0, 0, 0])
   const [rotation, setRotation] = useState<[number, number, number]>([0, 0, 0])
   const [scale, setScale] = useState<[number, number, number]>([1, 1, 1])
+
+  // Get the selected component
+  const selectedComponent = selectedComponentId 
+    ? state.currentConfig.components.find(c => c.id === selectedComponentId)
+    : null
 
   // Update local state when currentTransform changes
   useEffect(() => {
@@ -247,193 +257,124 @@ export function TransformControls({
     onTransform(selectedComponentId, { scale: newScale })
   }
 
+  const handleSnapPointSelect = (snapPointId: string) => {
+    console.log(`🎯 SNAP POINT SELECTED FROM SIDEBAR:`, {
+      componentId: selectedComponentId,
+      snapPointId,
+      componentName: selectedComponent?.name,
+      snapPointName: selectedComponent?.snapPoints?.find(sp => sp.id === snapPointId)?.name
+    })
+    
+    dispatch({ 
+      type: "SET_SELECTED_SNAP_POINT", 
+      componentId: selectedComponentId, 
+      snapPointId 
+    })
+  }
+
   return (
-    <Card className="w-80">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Move3D className="w-5 h-5" />
-          Transform Controls
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        
-        {/* Movement Controls */}
-        <div>
-          <h4 className="text-sm font-medium mb-3">Movement</h4>
-          
-          {/* Directional buttons */}
-          <div className="grid grid-cols-3 gap-1 mb-3">
-            <div></div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => moveComponent('forward')}
-              className="h-8"
-            >
-              <ArrowUp className="w-4 h-4" />
-            </Button>
-            <div></div>
+    <div className="space-y-4">
+      {/* Component Info */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm">Selected Component</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-sm">
+            <p className="font-medium">{selectedComponent?.name || 'Unknown'}</p>
+            <p className="text-gray-500">{selectedComponent?.type || 'Unknown'}</p>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Snap Points Selector */}
+      {selectedComponent?.snapPoints && selectedComponent.snapPoints.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-sm">
+              <Target className="h-4 w-4" />
+              Snap Points
+              <Badge variant="outline" className="text-xs">
+                {selectedComponent.snapPoints.length}
+              </Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <p className="text-xs text-gray-600 mb-3">
+              Click a snap point to select it for connecting other components
+            </p>
             
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => moveComponent('left')}
-              className="h-8"
-            >
-              <ArrowLeft className="w-4 h-4" />
-            </Button>
-            <div className="flex flex-col gap-1">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => moveComponent('up')}
-                className="h-6 text-xs"
-              >
-                <ChevronUp className="w-3 h-3" />
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => moveComponent('down')}
-                className="h-6 text-xs"
-              >
-                <ChevronDown className="w-3 h-3" />
-              </Button>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => moveComponent('right')}
-              className="h-8"
-            >
-              <ArrowRight className="w-4 h-4" />
-            </Button>
+            {selectedComponent.snapPoints.map((snapPoint) => {
+              const isSelected = state.selectedSnapPoint?.componentId === selectedComponentId && 
+                               state.selectedSnapPoint?.snapPointId === snapPoint.id
+              const isConnected = selectedComponent.connections?.includes(snapPoint.id)
+              
+              return (
+                <Button
+                  key={snapPoint.id}
+                  variant={isSelected ? "default" : "outline"}
+                  size="sm"
+                  className={`w-full justify-start text-left h-auto p-3 ${
+                    isSelected ? 'bg-blue-600 text-white' : ''
+                  } ${isConnected ? 'opacity-50' : ''}`}
+                  onClick={() => handleSnapPointSelect(snapPoint.id)}
+                  disabled={isConnected}
+                >
+                  <div className="flex items-center gap-2 w-full">
+                    <Circle 
+                      className={`h-3 w-3 ${
+                        isSelected ? 'fill-white' : 
+                        snapPoint.type === 'power' ? 'fill-red-500' :
+                        snapPoint.type === 'mechanical' ? 'fill-blue-500' :
+                        snapPoint.type === 'track' ? 'fill-green-500' :
+                        'fill-gray-500'
+                      }`} 
+                    />
+                    <div className="flex-1">
+                      <div className="font-medium text-xs">{snapPoint.name}</div>
+                      <div className="text-xs opacity-75 capitalize">{snapPoint.type}</div>
+                    </div>
+                    {isConnected && (
+                      <Badge variant="secondary" className="text-xs">Connected</Badge>
+                    )}
+                  </div>
+                </Button>
+              )
+            })}
             
-            <div></div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => moveComponent('backward')}
-              className="h-8"
-            >
-              <ArrowDown className="w-4 h-4" />
-            </Button>
-            <div></div>
-          </div>
+            {state.selectedSnapPoint?.componentId === selectedComponentId && (
+              <div className="mt-3 p-2 bg-blue-50 rounded-lg">
+                <p className="text-xs text-blue-800 font-medium">
+                  Snap point selected! Now click a component from the sidebar to connect it.
+                </p>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="mt-1 h-6 text-xs"
+                  onClick={() => dispatch({ type: "CLEAR_SELECTED_SNAP_POINT" })}
+                >
+                  Cancel Selection
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
-          {/* Position inputs */}
-          <div className="grid grid-cols-3 gap-2">
-            <div>
-              <Label className="text-xs">X</Label>
-              <Input
-                type="number"
-                step="0.1"
-                value={position[0].toFixed(1)}
-                onChange={(e) => handlePositionChange(0, parseFloat(e.target.value) || 0)}
-                className="h-8 text-xs"
-              />
-            </div>
-            <div>
-              <Label className="text-xs">Y</Label>
-              <Input
-                type="number"
-                step="0.1"
-                value={position[1].toFixed(1)}
-                onChange={(e) => handlePositionChange(1, parseFloat(e.target.value) || 0)}
-                className="h-8 text-xs"
-              />
-            </div>
-            <div>
-              <Label className="text-xs">Z</Label>
-              <Input
-                type="number"
-                step="0.1"
-                value={position[2].toFixed(1)}
-                onChange={(e) => handlePositionChange(2, parseFloat(e.target.value) || 0)}
-                className="h-8 text-xs"
-              />
-            </div>
-          </div>
-        </div>
-
-        <Separator />
-
-        {/* Rotation Controls */}
-        <div>
-          <h4 className="text-sm font-medium mb-3">Rotation</h4>
-          
-          {/* Quick rotation buttons */}
-          <div className="grid grid-cols-2 gap-2 mb-3">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => rotateComponent('y', 90)}
-              className="flex items-center gap-1"
-            >
-              <RotateCw className="w-4 h-4" />
-              90°
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => rotateComponent('y', -90)}
-              className="flex items-center gap-1"
-            >
-              <RotateCcw className="w-4 h-4" />
-              -90°
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => rotateComponent('y', 45)}
-              className="text-xs"
-            >
-              45°
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => rotateComponent('y', -45)}
-              className="text-xs"
-            >
-              -45°
-            </Button>
-          </div>
-
-          {/* Flip buttons */}
-          <div className="grid grid-cols-2 gap-2 mb-3">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => flipComponent('y')}
-              className="flex items-center gap-1"
-            >
-              <FlipHorizontal className="w-4 h-4" />
-              Flip H
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => flipComponent('x')}
-              className="flex items-center gap-1"
-            >
-              <FlipVertical className="w-4 h-4" />
-              Flip V
-            </Button>
-          </div>
-
-          {/* Track orientation toggle */}
-          <div className="grid grid-cols-1 gap-2 mb-3">
+      {/* Quick Transform Actions */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm">Quick Actions</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 gap-2">
             <Button
               variant="outline"
               size="sm"
               onClick={() => {
-                // Toggle between horizontal (0°) and vertical (90°) for tracks
-                const currentY = (rotation[1] * 180) / Math.PI
-                const isHorizontal = Math.abs(currentY % 180) < 45
                 const newRotation: [number, number, number] = [
                   rotation[0],
-                  isHorizontal ? Math.PI / 2 : 0, // 90° or 0°
+                  (rotation[1] + Math.PI / 2) % (Math.PI * 2),
                   rotation[2]
                 ]
                 setRotation(newRotation)
@@ -441,102 +382,308 @@ export function TransformControls({
               }}
               className="flex items-center gap-1"
             >
-              <RotateCw className="w-4 h-4" />
-              {Math.abs(((rotation[1] * 180) / Math.PI) % 180) < 45 ? 'Make Vertical' : 'Make Horizontal'}
+              <RotateCw className="w-3 h-3" />
+              Rotate Y
+            </Button>
+            
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                // Enhanced flip function for Easy Link End Cap White ceiling positioning
+                if (selectedComponent?.name?.toLowerCase().includes('easy link end cap white')) {
+                  console.log(`🔧 FLIP - Easy Link End Cap detected, maintaining ceiling position`)
+                  
+                  // Get current position and check if it's ceiling-mounted (Y > 2.0)
+                  const currentPos = position
+                  const isCeilingMounted = currentPos[1] > 2.0
+                  
+                  if (isCeilingMounted) {
+                    // For ceiling-mounted Easy Link End Cap, maintain exact ceiling position during flip
+                    const newRotation: [number, number, number] = [
+                      (rotation[0] + Math.PI) % (Math.PI * 2),
+                      rotation[1],
+                      rotation[2]
+                    ]
+                    
+                    console.log(`✅ FLIP - Easy Link End Cap flipped with ceiling position maintained`)
+                    setRotation(newRotation)
+                    onTransform(selectedComponentId, { 
+                      rotation: newRotation
+                      // Don't change position - keep it exactly where it is for ceiling mounting
+                    })
+                  } else {
+                    // Standard flip for non-ceiling mounted
+                    const newRotation: [number, number, number] = [
+                      (rotation[0] + Math.PI) % (Math.PI * 2),
+                      rotation[1],
+                      rotation[2]
+                    ]
+                    setRotation(newRotation)
+                    onTransform(selectedComponentId, { rotation: newRotation })
+                  }
+                } else {
+                  // Standard flip for other components
+                  const newRotation: [number, number, number] = [
+                    (rotation[0] + Math.PI) % (Math.PI * 2),
+                    rotation[1],
+                    rotation[2]
+                  ]
+                  setRotation(newRotation)
+                  onTransform(selectedComponentId, { rotation: newRotation })
+                }
+              }}
+              className="flex items-center gap-1"
+            >
+              <FlipHorizontal className="w-3 h-3" />
+              Flip
             </Button>
           </div>
+          
+          {/* Track-specific controls */}
+          {selectedComponent?.type === "track" && (
+            <div className="grid grid-cols-1 gap-2 mb-3">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  // Toggle between horizontal (0°) and vertical (90°) for tracks
+                  const currentY = (rotation[1] * 180) / Math.PI
+                  const isHorizontal = Math.abs(currentY % 180) < 45
+                  const newRotation: [number, number, number] = [
+                    rotation[0],
+                    isHorizontal ? Math.PI / 2 : 0, // 90° or 0°
+                    rotation[2]
+                  ]
+                  setRotation(newRotation)
+                  onTransform(selectedComponentId, { rotation: newRotation })
+                }}
+                className="flex items-center gap-1"
+              >
+                <RotateCw className="w-4 h-4" />
+                {Math.abs(((rotation[1] * 180) / Math.PI) % 180) < 45 ? 'Make Vertical' : 'Make Horizontal'}
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
-          {/* Rotation inputs */}
+      {/* Manual Position Controls */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm">Position</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
           <div className="grid grid-cols-3 gap-2">
             <div>
-              <Label className="text-xs">X-Axis</Label>
+              <Label htmlFor="pos-x" className="text-xs">X</Label>
               <Input
+                id="pos-x"
                 type="number"
-                step="15"
+                step="0.1"
+                value={position[0].toFixed(2)}
+                onChange={(e) => {
+                  const newPos: [number, number, number] = [
+                    parseFloat(e.target.value) || 0,
+                    position[1],
+                    position[2]
+                  ]
+                  setPosition(newPos)
+                  onTransform(selectedComponentId, { position: newPos })
+                }}
+                className="h-8 text-xs"
+              />
+            </div>
+            <div>
+              <Label htmlFor="pos-y" className="text-xs">Y</Label>
+              <Input
+                id="pos-y"
+                type="number"
+                step="0.1"
+                value={position[1].toFixed(2)}
+                onChange={(e) => {
+                  const newPos: [number, number, number] = [
+                    position[0],
+                    parseFloat(e.target.value) || 0,
+                    position[2]
+                  ]
+                  setPosition(newPos)
+                  onTransform(selectedComponentId, { position: newPos })
+                }}
+                className="h-8 text-xs"
+              />
+            </div>
+            <div>
+              <Label htmlFor="pos-z" className="text-xs">Z</Label>
+              <Input
+                id="pos-z"
+                type="number"
+                step="0.1"
+                value={position[2].toFixed(2)}
+                onChange={(e) => {
+                  const newPos: [number, number, number] = [
+                    position[0],
+                    position[1],
+                    parseFloat(e.target.value) || 0
+                  ]
+                  setPosition(newPos)
+                  onTransform(selectedComponentId, { position: newPos })
+                }}
+                className="h-8 text-xs"
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Manual Rotation Controls */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm">Rotation (degrees)</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="grid grid-cols-3 gap-2">
+            <div>
+              <Label htmlFor="rot-x" className="text-xs">X</Label>
+              <Input
+                id="rot-x"
+                type="number"
+                step="5"
                 value={Math.round((rotation[0] * 180) / Math.PI)}
-                onChange={(e) => handleRotationChange(0, parseFloat(e.target.value) || 0)}
+                onChange={(e) => {
+                  const degrees = parseFloat(e.target.value) || 0
+                  const newRot: [number, number, number] = [
+                    (degrees * Math.PI) / 180,
+                    rotation[1],
+                    rotation[2]
+                  ]
+                  setRotation(newRot)
+                  onTransform(selectedComponentId, { rotation: newRot })
+                }}
                 className="h-8 text-xs"
               />
             </div>
             <div>
-              <Label className="text-xs">Y-Axis</Label>
+              <Label htmlFor="rot-y" className="text-xs">Y</Label>
               <Input
+                id="rot-y"
                 type="number"
-                step="15"
+                step="5"
                 value={Math.round((rotation[1] * 180) / Math.PI)}
-                onChange={(e) => handleRotationChange(1, parseFloat(e.target.value) || 0)}
+                onChange={(e) => {
+                  const degrees = parseFloat(e.target.value) || 0
+                  const newRot: [number, number, number] = [
+                    rotation[0],
+                    (degrees * Math.PI) / 180,
+                    rotation[2]
+                  ]
+                  setRotation(newRot)
+                  onTransform(selectedComponentId, { rotation: newRot })
+                }}
                 className="h-8 text-xs"
               />
             </div>
             <div>
-              <Label className="text-xs">Z-Axis</Label>
+              <Label htmlFor="rot-z" className="text-xs">Z</Label>
               <Input
+                id="rot-z"
                 type="number"
-                step="15"
+                step="5"
                 value={Math.round((rotation[2] * 180) / Math.PI)}
-                onChange={(e) => handleRotationChange(2, parseFloat(e.target.value) || 0)}
+                onChange={(e) => {
+                  const degrees = parseFloat(e.target.value) || 0
+                  const newRot: [number, number, number] = [
+                    rotation[0],
+                    rotation[1],
+                    (degrees * Math.PI) / 180
+                  ]
+                  setRotation(newRot)
+                  onTransform(selectedComponentId, { rotation: newRot })
+                }}
                 className="h-8 text-xs"
               />
             </div>
           </div>
-        </div>
+        </CardContent>
+      </Card>
 
-        <Separator />
-
-        {/* Scale Control */}
-        <div>
-          <h4 className="text-sm font-medium mb-3">Scale</h4>
-          <div className="space-y-2">
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleScaleChange(0.5)}
-                className="flex-1"
-              >
-                50%
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleScaleChange(1)}
-                className="flex-1"
-              >
-                100%
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => handleScaleChange(1.5)}
-                className="flex-1"
-              >
-                150%
-              </Button>
+      {/* Scale Controls */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm">Scale</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="grid grid-cols-3 gap-2">
+            <div>
+              <Label htmlFor="scale-x" className="text-xs">X</Label>
+              <Input
+                id="scale-x"
+                type="number"
+                step="0.1"
+                value={scale[0].toFixed(2)}
+                onChange={(e) => {
+                  const newScale: [number, number, number] = [
+                    parseFloat(e.target.value) || 1,
+                    scale[1],
+                    scale[2]
+                  ]
+                  setScale(newScale)
+                  onTransform(selectedComponentId, { scale: newScale })
+                }}
+                className="h-8 text-xs"
+              />
             </div>
-            <Input
-              type="number"
-              step="0.1"
-              min="0.1"
-              max="3"
-              value={scale[0].toFixed(1)}
-              onChange={(e) => handleScaleChange(parseFloat(e.target.value) || 1)}
-              className="h-8 text-xs"
-            />
+            <div>
+              <Label htmlFor="scale-y" className="text-xs">Y</Label>
+              <Input
+                id="scale-y"
+                type="number"
+                step="0.1"
+                value={scale[1].toFixed(2)}
+                onChange={(e) => {
+                  const newScale: [number, number, number] = [
+                    scale[0],
+                    parseFloat(e.target.value) || 1,
+                    scale[2]
+                  ]
+                  setScale(newScale)
+                  onTransform(selectedComponentId, { scale: newScale })
+                }}
+                className="h-8 text-xs"
+              />
+            </div>
+            <div>
+              <Label htmlFor="scale-z" className="text-xs">Z</Label>
+              <Input
+                id="scale-z"
+                type="number"
+                step="0.1"
+                value={scale[2].toFixed(2)}
+                onChange={(e) => {
+                  const newScale: [number, number, number] = [
+                    scale[0],
+                    scale[1],
+                    parseFloat(e.target.value) || 1
+                  ]
+                  setScale(newScale)
+                  onTransform(selectedComponentId, { scale: newScale })
+                }}
+                className="h-8 text-xs"
+              />
+            </div>
           </div>
-        </div>
+        </CardContent>
+      </Card>
 
-        <Separator />
-
-        {/* Reset Button */}
-        <Button
-          variant="outline"
-          onClick={resetTransform}
-          className="w-full flex items-center gap-2"
-        >
-          <RefreshCw className="w-4 h-4" />
-          Reset Transform
-        </Button>
-      </CardContent>
-    </Card>
+      {/* Reset Button */}
+      <Button
+        variant="outline"
+        onClick={resetTransform}
+        className="w-full flex items-center gap-2"
+      >
+        <RefreshCw className="w-4 h-4" />
+        Reset Transform
+      </Button>
+    </div>
   )
 }

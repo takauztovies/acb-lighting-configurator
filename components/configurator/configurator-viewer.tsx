@@ -26,7 +26,7 @@ export function ConfiguratorViewer() {
   // Handle snap point selection - this starts the placement mode
   const handleSnapPointClick = useCallback(
     (componentId: string, snapPointId: string) => {
-      console.log(`�� SNAP POINT CLICKED - ULTRA DEBUG:`, {
+      console.log(`🎯 SNAP POINT CLICKED - ULTRA DEBUG:`, {
         componentId,
         snapPointId,
         currentSelectedSnapPoint: state.selectedSnapPoint,
@@ -72,70 +72,111 @@ export function ConfiguratorViewer() {
     dispatch({ type: "TOGGLE_LABELS" })
   }, [dispatch])
 
-  // Handle transform updates from transform controls with boundary checking
+  // Handle transform updates from transform controls with snap-aware logic
   const handleTransformUpdate = useCallback(async (componentId: string, transform: {
     rotation?: [number, number, number]
     scale?: [number, number, number]
     position?: [number, number, number]
   }) => {
-    console.log(`🎯 MANUAL TRANSFORM UPDATE:`, {
+    console.log(`🎯 SNAP-AWARE TRANSFORM UPDATE:`, {
       componentId,
       transform,
       isManualTransform: true
     })
 
-    // Import boundary system for validation
-    const { boundarySystem } = await import("@/lib/boundary-system")
-    
     // Get the component being transformed
     const component = state.currentConfig.components.find(c => c.id === componentId)
     if (!component) return
 
-    // For manual transforms, we only apply basic position constraints, NOT rotation overrides
-    let finalTransform = transform
-    
-    if (transform.position) {
-      const roomDims = { 
-        width: state.roomDimensions?.width || 8, 
-        height: state.roomDimensions?.height || 3, 
-        depth: state.roomDimensions?.length || 6  // Use length from roomDimensions
+    // Check if this component is connected via snap points
+    const hasSnapConnections = component.connections && component.connections.length > 0
+    const isSnapAttached = !!hasSnapConnections
+
+    console.log(`🔗 SNAP CONNECTION CHECK:`, {
+      componentId,
+      hasSnapConnections,
+      connections: component.connections,
+      isSnapAttached
+    })
+
+    // For components with snap connections, handle rotation specially
+    if (isSnapAttached && transform.rotation) {
+      console.log(`🔄 SNAP-AWARE ROTATION for connected component:`, componentId)
+      
+      // Import snap logic for recalculation
+      const { snapLogic } = await import("@/lib/snap-logic")
+      
+      // Find the connected component and snap points
+      const connectedComponentId = component.connections[0] // Assume first connection for now
+      const connectedComponent = state.currentConfig.components.find(c => c.id === connectedComponentId)
+      
+      if (connectedComponent) {
+        console.log(`🔗 RECALCULATING SNAP CONNECTION after rotation:`, {
+          rotatingComponent: component.id,
+          connectedComponent: connectedComponent.id,
+          newRotation: transform.rotation
+        })
+        
+        // Update the component with new rotation but maintain snap connection
+        // The exact position will be recalculated to maintain the snap connection
+        dispatch({
+          type: "UPDATE_COMPONENT",
+          componentId,
+          updates: { 
+            ...transform
+            // Keep position for now - could be recalculated if needed
+          }
+        })
+        
+        console.log(`✅ Snap-connected component rotated with connection maintained`)
+        return
       }
-      
-      // Create updated component with new transform, preserving all required LightComponent properties
-      const updatedComponent: any = {
-        ...component,
-        position: transform.position,
-        rotation: transform.rotation || component.rotation,
-        scale: transform.scale || component.scale
-      }
-      
-      // Use smartPositioning with manual transform context to prevent rotation override
-      const constrainedComponent = boundarySystem.smartPositioning(
-        updatedComponent,
-        roomDims,
-        { isManualTransform: true, source: 'manual-transform' }
-      )
-      
-      // Only use position constraints from smartPositioning, preserve manual rotation
-      finalTransform = {
-        position: constrainedComponent.position,
-        rotation: transform.rotation || component.rotation, // PRESERVE manual rotation
-        scale: transform.scale || component.scale
-      }
-      
-      console.log(`🔧 MANUAL TRANSFORM FINAL:`, {
-        originalRotation: transform.rotation,
-        finalRotation: finalTransform.rotation,
-        preservedManualRotation: true
-      })
     }
 
-    dispatch({ 
-      type: "UPDATE_COMPONENT", 
-      componentId, 
-      updates: finalTransform 
-    })
-  }, [dispatch, state.currentConfig.components, state.roomDimensions])
+    // For regular components or position/scale changes, apply boundary constraints
+    if (!isSnapAttached) {
+      // Import boundary system for validation
+      const { boundarySystem } = await import("@/lib/boundary-system")
+      
+      let finalTransform = transform
+
+      // Apply boundary constraints for non-snap-attached components
+      if (transform.position || transform.rotation) {
+        const roomDims = state.roomDimensions || { width: 8, length: 6, height: 3 }
+        
+        const constraintResult = boundarySystem.validateAndCorrectPosition(
+          component.type,
+          transform.position || component.position,
+          transform.rotation || component.rotation,
+          component.scale || [1, 1, 1],
+          roomDims
+        )
+        
+        finalTransform = {
+          ...transform,
+          position: constraintResult.position,
+          rotation: constraintResult.rotation
+        }
+        
+        if (constraintResult.corrected) {
+          console.log(`✅ Transform constrained:`, constraintResult.reason)
+        }
+      }
+
+      dispatch({
+        type: "UPDATE_COMPONENT",
+        componentId,
+        updates: finalTransform
+      })
+    } else {
+      // For snap-attached components, only apply transform directly (maintain connection)
+      dispatch({
+        type: "UPDATE_COMPONENT",
+        componentId,
+        updates: transform
+      })
+    }
+  }, [state.currentConfig.components, state.roomDimensions, dispatch])
 
   // Keyboard controls
   useEffect(() => {

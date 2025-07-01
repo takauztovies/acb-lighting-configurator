@@ -80,28 +80,34 @@ export function GuidedComponentPlacement({ setupData, onComplete }: GuidedCompon
   // Calculate initial position for component placement
   const calculateInitialPosition = (componentType: string): [number, number, number] => {
     const room = state.roomDimensions || { width: 8, length: 6, height: 3 }
-    const maxSafeHeight = Math.min(room.height - 1.0, 2)
     
-    // SIMPLIFIED POSITIONING: Always place components at center with safe height
-    let position: [number, number, number] = [0, 2.0, 0]  // Center of room, 2m height
-    
-    // CRITICAL FIX: For the first component (connector), place it at ceiling level near the socket
+    // CRITICAL FIX: For connectors (Easy Link End Cap), use EXACT socket position without modifications
     if (componentType === "connector") {
-      // Connectors (Easy Link End Cap) should be positioned at ceiling level
-      const ceilingHeight = Math.min(room.height - 0.2, 2.8) // 20cm below ceiling, max 2.8m
-      position = [
-        setupData?.socketPosition?.x || 0,
-        ceilingHeight,  // At ceiling level as intended
-        setupData?.socketPosition?.z || 0
-      ]
-      console.log(`📍 CONNECTOR POSITIONED AT CEILING:`, position, { ceilingHeight, socketPosition: setupData?.socketPosition })
+      let socketPosition: [number, number, number] = [0, room.height - 0.1, 0] // Default ceiling position
+      
+      if (setupData?.socketPosition) {
+        // Use EXACT socket position from setup data - no modifications!
+        socketPosition = [
+          setupData.socketPosition.x,
+          setupData.socketPosition.y, // Use exact Y coordinate from socket selector
+          setupData.socketPosition.z
+        ]
+        
+        console.log(`🎯 CONNECTOR USING EXACT SOCKET POSITION:`, socketPosition, {
+          originalSocketData: setupData.socketPosition,
+          noModifications: true
+        })
+      } else {
+        console.log(`🎯 CONNECTOR USING DEFAULT CEILING POSITION:`, socketPosition)
+      }
+      
+      return socketPosition
     } else {
-      // All other components at center with safe height  
-      position = [0, 2.0, 0]
+      // All other components at safe center position  
+      const position: [number, number, number] = [0, 2.0, 0]
       console.log(`📍 COMPONENT POSITIONED AT CENTER:`, position)
+      return position
     }
-    
-    return position
   }
 
   // Handle direct component placement (when no snap point is selected)
@@ -132,9 +138,16 @@ export function GuidedComponentPlacement({ setupData, onComplete }: GuidedCompon
     // Calculate initial rotation based on component type and placement location
     let initialRotation: [number, number, number] = [0, 0, 0]
     if (componentType === "connector") {
-      // ULTRA DEBUG: Try natural orientation first - maybe the model is already correctly oriented
-      initialRotation = [0, 0, 0]  // NO ROTATION - try natural orientation
-      console.log(`🔄 CONNECTOR ROTATION SET TO NATURAL:`, initialRotation)
+      // CRITICAL FIX: Easy Link End Cap should face downward toward ceiling/wall
+      if (componentTemplate.name?.toLowerCase().includes('easy link end cap white')) {
+        initialRotation = [0, 0, Math.PI]  // 180° rotation around Z-axis to face downward
+        console.log(`🔄 EASY LINK END CAP ROTATION SET TO UPSIDE DOWN:`, initialRotation, {
+          degrees: ['0.0', '0.0', (Math.PI * 180 / Math.PI).toFixed(1)]
+        })
+      } else {
+        initialRotation = [0, 0, 0]  // Normal orientation for other connectors
+        console.log(`🔄 OTHER CONNECTOR ROTATION SET TO NATURAL:`, initialRotation)
+      }
     } else if (componentType === "track") {
       // Track models need 90° X-axis rotation to appear horizontal
       initialRotation = [Math.PI/2, 0, 0]  // 90° around X-axis for horizontal tracks
@@ -142,9 +155,17 @@ export function GuidedComponentPlacement({ setupData, onComplete }: GuidedCompon
         degrees: [(Math.PI/2 * 180 / Math.PI).toFixed(1), '0.0', '0.0']
       })
     } else if (componentType === "spotlight") {
-      // For pendant lamps, try natural orientation
-      initialRotation = [0, 0, 0]  // Natural orientation for vertical hanging
-      console.log(`🔄 SPOTLIGHT/PENDANT ROTATION SET TO NATURAL:`, initialRotation)
+      // CRITICAL FIX: For pendant lamps, especially Pipe Pendant lamp, should be vertical with snap point on top
+      if (componentTemplate.name?.toLowerCase().includes('pipe') && 
+          componentTemplate.name?.toLowerCase().includes('pendant')) {
+        initialRotation = [Math.PI/2, 0, 0]  // 90° rotation around X-axis to make it vertical
+        console.log(`🔄 PIPE PENDANT LAMP ROTATION SET TO VERTICAL:`, initialRotation, {
+          degrees: ['90.0', '0.0', '0.0']
+        })
+      } else {
+        initialRotation = [0, 0, 0]  // Natural orientation for other spotlights/pendant lamps
+        console.log(`🔄 OTHER SPOTLIGHT/PENDANT ROTATION SET TO NATURAL:`, initialRotation)
+      }
     }
     
     console.log(`🎯 ULTRA DEBUG - DIRECT PLACEMENT ROTATION:`, {
@@ -167,10 +188,17 @@ export function GuidedComponentPlacement({ setupData, onComplete }: GuidedCompon
     
     // CRITICAL FIX: Don't force connectors away from ceiling - they SHOULD be at ceiling level
     let correctedPosition = initialPosition
+    let finalConstraintResult: any
     
     if (componentType === "connector") {
-      // Connectors (Easy Link End Cap) should stay at ceiling level - don't modify position
-      console.log(`🎯 CONNECTOR KEPT AT CEILING LEVEL:`, initialPosition)
+      // Connectors (Easy Link End Cap) should stay at ceiling level - BYPASS ALL CONSTRAINTS
+      console.log(`🎯 CONNECTOR BYPASSING ALL CONSTRAINTS - STAYING AT CEILING LEVEL:`, initialPosition)
+      finalConstraintResult = {
+        position: initialPosition, // Use exact calculated ceiling position
+        rotation: initialRotation, // Use exact rotation (including 180° for Easy Link End Cap White)
+        corrected: false,
+        reason: "Connector maintained at exact ceiling level"
+      }
     } else {
       // For other components, apply height constraints to keep them below ceiling
       const maxHeight = Math.min(roomDims.height - 1.0, 2.0) // Maximum 2m height, minimum 1m below ceiling
@@ -179,19 +207,19 @@ export function GuidedComponentPlacement({ setupData, onComplete }: GuidedCompon
         correctedPosition = [initialPosition[0], maxHeight, initialPosition[2]]
         console.log(`🔧 Component forced to safe height: y=${maxHeight} (was ${initialPosition[1]}, ceiling at ${roomDims.height})`)
       }
+      
+      finalConstraintResult = boundarySystem.validateAndCorrectPosition(
+        componentType,
+        correctedPosition,
+        initialRotation,
+        scale,
+        roomDims
+      )
     }
-    
-    const constraintResult = boundarySystem.validateAndCorrectPosition(
-      componentType,
-      correctedPosition,
-      initialRotation,
-      scale,
-      roomDims
-    )
 
     // Show user feedback if positioning was corrected
-    if (constraintResult.corrected && constraintResult.reason) {
-      console.log(`✅ Smart positioning: ${constraintResult.reason}`)
+    if (finalConstraintResult.corrected && finalConstraintResult.reason) {
+      console.log(`✅ Smart positioning: ${finalConstraintResult.reason}`)
       // You could show a toast notification here
     }
 
@@ -209,15 +237,15 @@ export function GuidedComponentPlacement({ setupData, onComplete }: GuidedCompon
       type: componentTemplate.type,
       model3d: componentTemplate.model3d,
       image: componentTemplate.image,
-      position: constraintResult.position,
-      rotation: constraintResult.rotation,
+      position: finalConstraintResult.position,
+      rotation: finalConstraintResult.rotation,
       scale: finalScale,
       connections: [],
       snapPoints: componentTemplate.snapPoints || [],
       price: componentTemplate.price || 0,
       properties: componentTemplate.specifications || {},
-      initialPosition: constraintResult.position, // Store initial position for reset
-      initialRotation: constraintResult.rotation,
+      initialPosition: finalConstraintResult.position, // Store initial position for reset
+      initialRotation: finalConstraintResult.rotation,
       initialScale: finalScale
     }
 
@@ -299,16 +327,33 @@ export function GuidedComponentPlacement({ setupData, onComplete }: GuidedCompon
     // Calculate initial rotation for component type
     let baseRotation: [number, number, number] = [0, 0, 0]
     if (componentTemplate.type === "connector") {
-      baseRotation = [0, 0, 0] // ULTRA DEBUG: Try natural orientation
-      console.log(`🔄 SNAP CONNECTOR ROTATION SET TO NATURAL:`, baseRotation)
+      // CRITICAL FIX: Easy Link End Cap should face downward toward ceiling/wall
+      if (componentTemplate.name?.toLowerCase().includes('easy link end cap white')) {
+        baseRotation = [0, 0, Math.PI]  // 180° rotation around Z-axis to face downward
+        console.log(`🔄 SNAP EASY LINK END CAP ROTATION SET TO UPSIDE DOWN:`, baseRotation, {
+          degrees: ['0.0', '0.0', (Math.PI * 180 / Math.PI).toFixed(1)]
+        })
+      } else {
+        baseRotation = [0, 0, 0]  // Normal orientation for other connectors
+        console.log(`🔄 SNAP OTHER CONNECTOR ROTATION SET TO NATURAL:`, baseRotation)
+      }
     } else if (componentTemplate.type === "track") {
       baseRotation = [Math.PI/2, 0, 0] // Track models need 90° X-axis to be horizontal
       console.log(`🔄 SNAP TRACK ROTATION SET TO HORIZONTAL:`, baseRotation, {
         degrees: [(Math.PI/2 * 180 / Math.PI).toFixed(1), '0.0', '0.0']
       })
     } else if (componentTemplate.type === "spotlight") {
-      baseRotation = [0, 0, 0] // Natural orientation for vertical hanging
-      console.log(`🔄 SNAP SPOTLIGHT/PENDANT ROTATION SET TO NATURAL:`, baseRotation)
+      // CRITICAL FIX: For pendant lamps, especially Pipe Pendant lamp, should be vertical with snap point on top
+      if (componentTemplate.name?.toLowerCase().includes('pipe') && 
+          componentTemplate.name?.toLowerCase().includes('pendant')) {
+        baseRotation = [Math.PI/2, 0, 0]  // 90° rotation around X-axis to make it vertical
+        console.log(`🔄 SNAP PIPE PENDANT LAMP ROTATION SET TO VERTICAL:`, baseRotation, {
+          degrees: ['90.0', '0.0', '0.0']
+        })
+      } else {
+        baseRotation = [0, 0, 0] // Natural orientation for other spotlights/pendant lamps
+        console.log(`🔄 SNAP OTHER SPOTLIGHT/PENDANT ROTATION SET TO NATURAL:`, baseRotation)
+      }
     }
     
     console.log(`🔗 ULTRA DEBUG - SNAP PLACEMENT ROTATION:`, {
@@ -424,8 +469,22 @@ export function GuidedComponentPlacement({ setupData, onComplete }: GuidedCompon
     console.log(`🎯 COMPONENT TYPE SELECTED for placement:`, {
       componentType,
       hasSelectedSnapPoint: !!state.selectedSnapPoint,
-      selectedSnapPoint: state.selectedSnapPoint
+      selectedSnapPoint: state.selectedSnapPoint,
+      existingComponentsCount: state.currentConfig.components.length
     })
+    
+    // CRITICAL VALIDATION: Check if this is the first component placement
+    if (state.currentConfig.components.length === 0 && !state.selectedSnapPoint) {
+      const componentTemplate = availableComponents.find((c) => c.type === componentType)
+      
+      if (!componentTemplate?.name?.toLowerCase().includes('easy link end cap white')) {
+        console.error(`❌ FIRST COMPONENT RESTRICTION: Only Easy Link End Cap White can be placed first!`)
+        alert('Please start with the Easy Link End Cap White component. This is the starting point for your lighting system.')
+        return
+      }
+      
+      console.log(`✅ FIRST COMPONENT VALIDATION PASSED: Easy Link End Cap White selected`)
+    }
     
     const componentTemplate = availableComponents.find((c) => c.type === componentType)
     if (!componentTemplate) {
@@ -446,7 +505,16 @@ export function GuidedComponentPlacement({ setupData, onComplete }: GuidedCompon
 
   // Get compatible components for the selected snap point
   const getCompatibleComponents = () => {
-    if (!state.selectedSnapPoint) return availableComponents
+    if (!state.selectedSnapPoint) {
+      // CRITICAL FIX: If no components exist, only allow Easy Link End Cap White as first component
+      if (state.currentConfig.components.length === 0) {
+        console.log(`🚫 NO COMPONENTS EXIST - ONLY ALLOWING EASY LINK END CAP WHITE AS FIRST COMPONENT`)
+        return availableComponents.filter(component => 
+          component.name?.toLowerCase().includes('easy link end cap white')
+        )
+      }
+      return availableComponents
+    }
 
     // Find the selected snap point
     const sourceComponent = state.currentConfig.components.find((c) => c.id === state.selectedSnapPoint!.componentId)

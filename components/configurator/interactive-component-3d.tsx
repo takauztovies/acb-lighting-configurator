@@ -26,6 +26,7 @@ interface InteractiveComponent3DProps {
     specifications?: {
       scale?: number
     }
+    connections?: string[]
   }
   isSelected: boolean
   isPrimary?: boolean
@@ -479,10 +480,39 @@ export function InteractiveComponent3D({
         </mesh>
       )}
 
-      {/* Component snap points - only show if component has defined snap points */}
+      {/* Component snap points - only show if component has defined snap points AND they are not connected */}
       {shouldShowSnapPoints && hasSnapPoints &&
-        // Only render unique, valid snap points by id
+        // Only render unique, valid snap points by id that are NOT connected
         Array.from(new Map((component.snapPoints || []).filter(sp => sp && sp.id).map(sp => [sp.id, sp])).values())
+          .filter((snapPoint) => {
+            // CRITICAL FIX: Hide snap points that are already connected
+            if (!snapPoint || !snapPoint.id) return false
+            
+            // Check if this snap point is part of any connection
+            const isConnected = (component.connections || []).length > 0 && 
+                               component.snapPoints?.some(sp => 
+                                 sp.id === snapPoint.id && 
+                                 (component.connections || []).includes(snapPoint.id)
+                               )
+            
+            // Hide connected snap points unless selected for debugging
+            const isDebugSelected = selectedSnapPoint?.componentId === component.id && 
+                                  selectedSnapPoint?.snapPointId === snapPoint.id
+            
+            const shouldShow = !isConnected || isDebugSelected
+            
+            console.log(`🔗 SNAP POINT VISIBILITY CHECK:`, {
+              componentId: component.id,
+              snapPointId: snapPoint.id,
+              snapPointName: snapPoint.name,
+              isConnected,
+              connections: component.connections,
+              shouldShow,
+              reason: isConnected ? 'Connected - hiding' : 'Not connected - showing'
+            })
+            
+            return shouldShow
+          })
           .map((snapPoint) => {
             if (!snapPoint || !snapPoint.id) return null
             const snapPosX = snapPoint.position?.[0] ?? 0

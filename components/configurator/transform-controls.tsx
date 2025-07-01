@@ -135,8 +135,76 @@ export function TransformControls({
     console.log(`✅ Transform dispatched for component: ${selectedComponentId}`)
   }
 
-  // Flip functions (180-degree rotations)
-  const flipComponent = (axis: 'x' | 'y' | 'z') => {
+  // Flip functions (180-degree rotations) - ENHANCED for snap connections
+  const flipComponent = async (axis: 'x' | 'y' | 'z') => {
+    console.log(`🔄 FLIP COMPONENT - Enhanced for snap connections:`, {
+      componentId: selectedComponentId,
+      axis,
+      currentRotation: rotation,
+      currentPosition: position
+    })
+    
+    // Check if component has snap connections that need to be maintained
+    if (selectedComponentId && currentTransform) {
+      // Import snap logic for recalculation
+      const { snapLogic } = await import("@/lib/snap-logic")
+      
+      // Calculate new rotation after flip
+      const newRotation: [number, number, number] = [...rotation]
+      const radians = (180 * Math.PI) / 180
+      
+      switch (axis) {
+        case 'x':
+          newRotation[0] += radians
+          break
+        case 'y':
+          newRotation[1] += radians
+          break
+        case 'z':
+          newRotation[2] += radians
+          break
+      }
+      
+      console.log(`🔄 FLIP - New rotation calculated:`, {
+        oldRotation: rotation,
+        newRotation,
+        axis,
+        degrees: newRotation.map(r => (r * 180 / Math.PI).toFixed(1))
+      })
+      
+      // For Easy Link End Cap White and other ceiling connectors, 
+      // we need to adjust position to maintain ceiling connection
+      const isEasyLinkEndCap = currentTransform.position && currentTransform.position[1] > 2.0 // Assume ceiling mounted if Y > 2
+      
+      if (isEasyLinkEndCap) {
+        console.log(`🔧 FLIP - Easy Link End Cap detected, maintaining ceiling position`)
+        
+        // Keep the component at ceiling level after flip
+        const maintainedPosition: [number, number, number] = [
+          position[0], // Keep X position
+          currentTransform.position?.[1] || position[1], // Maintain exact ceiling Y position
+          position[2]  // Keep Z position
+        ]
+        
+        console.log(`🔧 FLIP - Position maintained for ceiling mount:`, {
+          originalPosition: position,
+          maintainedPosition
+        })
+        
+        // Apply both rotation and position changes together
+        setRotation(newRotation)
+        setPosition(maintainedPosition)
+        onTransform(selectedComponentId, { 
+          rotation: newRotation,
+          position: maintainedPosition
+        })
+        
+        console.log(`✅ FLIP - Easy Link End Cap flipped with ceiling position maintained`)
+        return
+      }
+    }
+    
+    // For regular components without special positioning needs
     rotateComponent(axis, 180)
   }
 

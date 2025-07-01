@@ -159,13 +159,21 @@ function CameraSetup({ roomDimensions }: { roomDimensions: { width: number; leng
   const { camera } = useThree()
 
   useEffect(() => {
-    // Calculate camera position based on room dimensions
+    // CRITICAL FIX: Calculate camera position to nicely fill the canvas
     const maxDimension = Math.max(roomDimensions.width, roomDimensions.length, roomDimensions.height)
-    const distance = maxDimension * 1.5
+    const distance = maxDimension * 1.0  // Reduced from 1.5 to 1.0 for better zoom
 
-    // Position camera at an angle
+    // Position camera at an angle to frame the room nicely
     camera.position.set(distance, distance * 0.8, distance)
-    camera.lookAt(0, 0, 0)
+    camera.lookAt(0, roomDimensions.height / 2, 0)  // Look at room center height instead of floor
+    
+    console.log(`📷 CAMERA SETUP - ROOM FILLING ZOOM:`, {
+      roomDimensions,
+      maxDimension,
+      distance,
+      cameraPosition: [distance, distance * 0.8, distance],
+      lookAtPoint: [0, roomDimensions.height / 2, 0]
+    })
   }, [camera, roomDimensions])
 
   return null

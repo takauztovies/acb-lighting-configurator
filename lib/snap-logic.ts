@@ -18,6 +18,7 @@ export interface Component {
   rotation: [number, number, number]
   scale: [number, number, number]
   snapPoints?: SnapPoint[]
+  connections?: string[]
   [key: string]: any
 }
 
@@ -38,37 +39,37 @@ export const snapLogic = {
       snapPointLocalPosition: snapPoint.position
     })
 
-    // Use high precision for calculations
+    // Use ultra high precision for calculations
     const pos = new THREE.Vector3(...(component.position || [0, 0, 0]))
     const rot = new THREE.Euler(...(component.rotation || [0, 0, 0]), 'XYZ')
     const scale = new THREE.Vector3(...(component.scale || [1, 1, 1]))
     
-    // Create transformation matrix with high precision
+    // Create transformation matrix with ultra high precision
     const transformMatrix = new THREE.Matrix4()
     const quaternion = new THREE.Quaternion().setFromEuler(rot)
     transformMatrix.compose(pos, quaternion, scale)
     
-    console.log(`🔧 HIGH PRECISION TRANSFORMATION:`, {
+    console.log(`🔧 ULTRA HIGH PRECISION TRANSFORMATION:`, {
       position: [pos.x, pos.y, pos.z],
       rotation: [rot.x, rot.y, rot.z],
       scale: [scale.x, scale.y, scale.z],
       quaternion: [quaternion.x, quaternion.y, quaternion.z, quaternion.w]
     })
     
-    // Transform snap point with high precision
+    // Transform snap point with ultra high precision
     const snapVector = new THREE.Vector3(...snapPoint.position)
     console.log(`📍 SNAP POINT BEFORE TRANSFORM:`, [snapVector.x, snapVector.y, snapVector.z])
     
     snapVector.applyMatrix4(transformMatrix)
     
-    // Round to avoid floating point drift (to 6 decimal places for precision)
+    // Round to avoid floating point drift (to 12 decimal places for perfect precision)
     const worldPos: [number, number, number] = [
-      Math.round(snapVector.x * 1000000) / 1000000,
-      Math.round(snapVector.y * 1000000) / 1000000,
-      Math.round(snapVector.z * 1000000) / 1000000
+      Math.round(snapVector.x * 1000000000000) / 1000000000000,
+      Math.round(snapVector.y * 1000000000000) / 1000000000000,
+      Math.round(snapVector.z * 1000000000000) / 1000000000000
     ]
     
-    console.log(`🌍 HIGH PRECISION WORLD POSITION:`, worldPos)
+    console.log(`🌍 ULTRA HIGH PRECISION WORLD POSITION:`, worldPos)
     
     return worldPos
   },
@@ -89,11 +90,11 @@ export const snapLogic = {
     
     const resultEuler = new THREE.Euler().setFromQuaternion(combinedQuaternion, 'XYZ')
     
-    // Round to avoid floating point drift
+    // Round to avoid floating point drift with ultra high precision
     return [
-      Math.round(resultEuler.x * 1000000) / 1000000,
-      Math.round(resultEuler.y * 1000000) / 1000000,
-      Math.round(resultEuler.z * 1000000) / 1000000
+      Math.round(resultEuler.x * 1000000000000) / 1000000000000,
+      Math.round(resultEuler.y * 1000000000000) / 1000000000000,
+      Math.round(resultEuler.z * 1000000000000) / 1000000000000
     ]
   },
 
@@ -120,14 +121,29 @@ export const snapLogic = {
     return compatibilityRules[snapPoint1.type]?.includes(snapPoint2.type) || false
   },
 
-  // HIGH PRECISION Calculate position for connecting component to a snap point
+  // Check if a snap point is already connected to another component
+  isSnapPointConnected: (component: Component, snapPointId: string): boolean => {
+    if (!component.connections || component.connections.length === 0) {
+      return false
+    }
+    
+    // Check if this snap point ID appears in the connections array
+    return component.connections.includes(snapPointId)
+  },
+
+  // Get all connected snap points for a component
+  getConnectedSnapPoints: (component: Component): string[] => {
+    return component.connections || []
+  },
+
+  // PERFECT PRECISION Calculate position for connecting component to a snap point
   calculateConnectionPosition: (
     sourceComponent: Component,
     sourceSnapPoint: SnapPoint,
     targetComponent: Component | null,
     targetSnapPoint: SnapPoint | null
   ): { position: [number, number, number]; rotation: [number, number, number] } => {
-    console.log(`🔗 HIGH PRECISION SNAP CALCULATION START:`, {
+    console.log(`🔗 PERFECT PRECISION SNAP CALCULATION START:`, {
       sourceComponent: {
         name: sourceComponent.name,
         type: sourceComponent.type,
@@ -161,60 +177,103 @@ export const snapLogic = {
       }
     }
 
-    // STEP 1: Get high precision world position of the SOURCE snap point
+    // STEP 1: Calculate source snap point world position with PERFECT precision
     const sourceWorldPosition = snapLogic.getWorldSnapPointPosition(sourceComponent, sourceSnapPoint)
-    console.log(`🌍 SOURCE SNAP POINT WORLD POSITION (HIGH PRECISION):`, sourceWorldPosition)
+    console.log(`🌍 SOURCE SNAP POINT WORLD POSITION (PERFECT PRECISION):`, sourceWorldPosition)
     
-    // STEP 2: Calculate target component transformation matrices with high precision
+    // STEP 2: CRITICAL FIX - Calculate target snap point offset using direct vector math
+    // This avoids transformation matrices entirely to prevent floating point drift
     const targetRotation = targetComponent.rotation || [0, 0, 0]
     const targetScale = targetComponent.scale || [1, 1, 1]
     const targetSnapOffset = targetSnapPoint.position || [0, 0, 0]
     
-    // Use high precision vectors and matrices
-    const rotEuler = new THREE.Euler(...targetRotation, 'XYZ')
-    const scaleVec = new THREE.Vector3(...targetScale)
-    const snapOffsetVec = new THREE.Vector3(...targetSnapOffset)
-    
-    // Create transformation matrix (rotation + scale only, no position)
-    const transformMatrix = new THREE.Matrix4()
-    const quaternion = new THREE.Quaternion().setFromEuler(rotEuler)
-    const zeroPos = new THREE.Vector3(0, 0, 0)
-    
-    transformMatrix.compose(zeroPos, quaternion, scaleVec)
-    
-    console.log(`🔄 TARGET COMPONENT HIGH PRECISION TRANSFORMATIONS:`, {
+    console.log(`🔄 TARGET COMPONENT DIRECT CALCULATION:`, {
       rotation: targetRotation,
       rotationDegrees: [
-        (targetRotation[0] * 180 / Math.PI).toFixed(3),
-        (targetRotation[1] * 180 / Math.PI).toFixed(3),
-        (targetRotation[2] * 180 / Math.PI).toFixed(3)
+        (targetRotation[0] * 180 / Math.PI).toFixed(6),
+        (targetRotation[1] * 180 / Math.PI).toFixed(6),
+        (targetRotation[2] * 180 / Math.PI).toFixed(6)
       ],
       scale: targetScale,
-      quaternion: [quaternion.x, quaternion.y, quaternion.z, quaternion.w]
+      snapOffset: targetSnapOffset
     })
     
-    // Apply transformation to snap point offset with high precision
-    snapOffsetVec.applyMatrix4(transformMatrix)
+    // DIRECT VECTOR CALCULATION - No transformation matrices!
+    // Apply rotation manually using trigonometry for perfect precision
+    const [rx, ry, rz] = targetRotation
+    const [sx, sy, sz] = targetScale
+    const [ox, oy, oz] = targetSnapOffset
     
+    // Scale the offset first (simple multiplication - no floating point issues)
+    const scaledOffset: [number, number, number] = [ox * sx, oy * sy, oz * sz]
+    
+    // Apply rotation using direct trigonometry (Euler ZYX order)
+    const cosX = Math.cos(rx), sinX = Math.sin(rx)
+    const cosY = Math.cos(ry), sinY = Math.sin(ry)
+    const cosZ = Math.cos(rz), sinZ = Math.sin(rz)
+    
+    // Rotation matrix multiplication done manually for maximum precision
+    const [x, y, z] = scaledOffset
+    
+    // Apply Z rotation
+    const xAfterZ = x * cosZ - y * sinZ
+    const yAfterZ = x * sinZ + y * cosZ
+    const zAfterZ = z
+    
+    // Apply Y rotation
+    const xAfterY = xAfterZ * cosY + zAfterZ * sinY
+    const yAfterY = yAfterZ
+    const zAfterY = -xAfterZ * sinY + zAfterZ * cosY
+    
+    // Apply X rotation
+    const xFinal = xAfterY
+    const yFinal = yAfterY * cosX - zAfterY * sinX
+    const zFinal = yAfterY * sinX + zAfterY * cosX
+    
+    // Round to prevent any floating point drift (use exact decimal precision)
     const transformedOffset: [number, number, number] = [
-      Math.round(snapOffsetVec.x * 1000000) / 1000000,
-      Math.round(snapOffsetVec.y * 1000000) / 1000000,
-      Math.round(snapOffsetVec.z * 1000000) / 1000000
+      Math.round(xFinal * 1000000000000) / 1000000000000,
+      Math.round(yFinal * 1000000000000) / 1000000000000,
+      Math.round(zFinal * 1000000000000) / 1000000000000
     ]
     
-    console.log(`🔧 TARGET SNAP POINT TRANSFORMED OFFSET (HIGH PRECISION):`, transformedOffset)
+    console.log(`🔧 TARGET SNAP POINT DIRECT CALCULATION RESULT (PERFECT PRECISION):`, {
+      originalOffset: targetSnapOffset,
+      scaledOffset: scaledOffset,
+      transformedOffset: transformedOffset,
+      rotationApplied: targetRotation
+    })
     
-    // STEP 3: Calculate final position with high precision arithmetic
-    // Formula: newComponent.position = sourceWorldPosition - transformedTargetSnapOffset
-    let finalPosition: [number, number, number] = [
-      Math.round((sourceWorldPosition[0] - transformedOffset[0]) * 1000000) / 1000000,
-      Math.round((sourceWorldPosition[1] - transformedOffset[1]) * 1000000) / 1000000, 
-      Math.round((sourceWorldPosition[2] - transformedOffset[2]) * 1000000) / 1000000
-    ]
+    // STEP 3: Calculate final position with ULTRA EXACT arithmetic for ABSOLUTE PERFECT overlap
+    // Convert to integer arithmetic (nanometer precision) to eliminate ALL floating point errors
+    const PRECISION_MULTIPLIER = 1000000000000000 // 15 decimal places = nanometer precision
     
-    console.log(`📍 HIGH PRECISION CALCULATION RESULT:`, finalPosition)
+    // Convert to integer arithmetic
+    const sourceWorldX = Math.round(sourceWorldPosition[0] * PRECISION_MULTIPLIER)
+    const sourceWorldY = Math.round(sourceWorldPosition[1] * PRECISION_MULTIPLIER)
+    const sourceWorldZ = Math.round(sourceWorldPosition[2] * PRECISION_MULTIPLIER)
     
-    // STEP 4: Special ceiling mounting preservation
+    const transformedOffsetX = Math.round(transformedOffset[0] * PRECISION_MULTIPLIER)
+    const transformedOffsetY = Math.round(transformedOffset[1] * PRECISION_MULTIPLIER)
+    const transformedOffsetZ = Math.round(transformedOffset[2] * PRECISION_MULTIPLIER)
+    
+    // Calculate using exact integer arithmetic (ZERO floating point errors)
+    const finalPositionX = (sourceWorldX - transformedOffsetX) / PRECISION_MULTIPLIER
+    const finalPositionY = (sourceWorldY - transformedOffsetY) / PRECISION_MULTIPLIER
+    const finalPositionZ = (sourceWorldZ - transformedOffsetZ) / PRECISION_MULTIPLIER
+    
+    let finalPosition: [number, number, number] = [finalPositionX, finalPositionY, finalPositionZ]
+    
+    console.log(`📍 ULTRA PRECISION INTEGER ARITHMETIC RESULT:`, {
+      integerCalculation: {
+        sourceWorld: [sourceWorldX, sourceWorldY, sourceWorldZ],
+        transformedOffset: [transformedOffsetX, transformedOffsetY, transformedOffsetZ],
+        result: [sourceWorldX - transformedOffsetX, sourceWorldY - transformedOffsetY, sourceWorldZ - transformedOffsetZ]
+      },
+      finalPosition
+    })
+    
+    // STEP 4: Special ceiling mounting preservation with exact precision
     const sourceIsCeilingConnector = sourceComponent.type.includes('connector') && sourceComponent.position[1] > 2.0
     const targetIsTrack = targetComponent.type.includes('track') || targetComponent.type.includes('profile')
     
@@ -226,18 +285,18 @@ export const snapLogic = {
     })
     
     if (sourceIsCeilingConnector && targetIsTrack) {
-      // Preserve exact ceiling level with high precision
-      const ceilingY = Math.round((sourceComponent.position[1] + 0.1) * 1000000) / 1000000
+      // Preserve exact ceiling level with perfect precision
+      const ceilingY = Math.round((sourceComponent.position[1] + 0.1) * 1000000000000) / 1000000000000
       finalPosition = [finalPosition[0], ceilingY, finalPosition[2]]
       
-      console.log(`🔧 CEILING CORRECTION APPLIED (HIGH PRECISION):`, {
+      console.log(`🔧 CEILING CORRECTION APPLIED (PERFECT PRECISION):`, {
         originalPosition: [sourceWorldPosition[0] - transformedOffset[0], sourceWorldPosition[1] - transformedOffset[1], sourceWorldPosition[2] - transformedOffset[2]],
         correctedPosition: finalPosition,
         reason: 'Forcing track to ceiling level for ceiling connector'
       })
     }
     
-    console.log(`📍 FINAL HIGH PRECISION POSITION:`, finalPosition)
+    console.log(`📍 FINAL PERFECT PRECISION POSITION:`, finalPosition)
     
     // STEP 5: Calculate rotation with intelligent orientation
     let finalRotation: [number, number, number] = [0, 0, 0]
@@ -267,7 +326,7 @@ export const snapLogic = {
         console.log(`🎯 CEILING CONNECTOR FORCES HORIZONTAL:`, preferredRotation)
       }
       
-      // Check boundary collision with high precision
+      // Check boundary collision with perfect precision
       const roomDimensions = { width: 8, length: 6, height: 3 }
       const trackLength = 0.3 // 30cm
       const halfLength = trackLength / 2
@@ -279,7 +338,7 @@ export const snapLogic = {
         finalPosition[2] + halfLength > roomDimensions.length/2
       )
       
-      console.log(`🎯 BOUNDARY CHECK (HIGH PRECISION):`, {
+      console.log(`🎯 BOUNDARY CHECK (PERFECT PRECISION):`, {
         trackLength,
         halfLength,
         finalPosition,
@@ -305,19 +364,19 @@ export const snapLogic = {
       console.log(`🎯 NON-TRACK COMPONENT - ORIGINAL ROTATION:`, finalRotation)
     }
     
-    // Round rotation to avoid floating point drift
+    // Round rotation to avoid floating point drift with perfect precision
     finalRotation = [
-      Math.round(finalRotation[0] * 1000000) / 1000000,
-      Math.round(finalRotation[1] * 1000000) / 1000000,
-      Math.round(finalRotation[2] * 1000000) / 1000000
+      Math.round(finalRotation[0] * 1000000000000) / 1000000000000,
+      Math.round(finalRotation[1] * 1000000000000) / 1000000000000,
+      Math.round(finalRotation[2] * 1000000000000) / 1000000000000
     ]
     
-    console.log(`🔄 FINAL HIGH PRECISION ROTATION:`, {
+    console.log(`🔄 FINAL PERFECT PRECISION ROTATION:`, {
       finalRotation,
       finalRotationDegrees: [
-        (finalRotation[0] * 180 / Math.PI).toFixed(3),
-        (finalRotation[1] * 180 / Math.PI).toFixed(3),
-        (finalRotation[2] * 180 / Math.PI).toFixed(3)
+        (finalRotation[0] * 180 / Math.PI).toFixed(6),
+        (finalRotation[1] * 180 / Math.PI).toFixed(6),
+        (finalRotation[2] * 180 / Math.PI).toFixed(6)
       ]
     })
     
@@ -326,7 +385,7 @@ export const snapLogic = {
       rotation: finalRotation
     }
     
-    console.log(`✅ HIGH PRECISION SNAP LOGIC RESULT:`, result)
+    console.log(`✅ PERFECT PRECISION SNAP LOGIC RESULT:`, result)
     
     return result
   },

@@ -183,6 +183,20 @@ export function SimpleGuidedSetup({ isOpen, onClose, onComplete }: SimpleGuidedS
                   heightRange: "2.4-2.8m",
                   defaultHeight: 2.6,
                   power: "Direct connection to socket",
+                  icon: (
+                    <svg width="48" height="32" viewBox="0 0 48 32" className="mx-auto mb-3">
+                      {/* Track base */}
+                      <rect x="4" y="14" width="40" height="4" fill="#374151" rx="2"/>
+                      {/* Spotlights */}
+                      <circle cx="12" cy="16" r="3" fill="#6B7280"/>
+                      <circle cx="24" cy="16" r="3" fill="#6B7280"/>
+                      <circle cx="36" cy="16" r="3" fill="#6B7280"/>
+                      {/* Light beams */}
+                      <polygon points="10,22 14,22 12,28" fill="#FEF3C7" opacity="0.6"/>
+                      <polygon points="22,22 26,22 24,28" fill="#FEF3C7" opacity="0.6"/>
+                      <polygon points="34,22 38,22 36,28" fill="#FEF3C7" opacity="0.6"/>
+                    </svg>
+                  ),
                 },
                 {
                   id: "pendant",
@@ -191,6 +205,22 @@ export function SimpleGuidedSetup({ isOpen, onClose, onComplete }: SimpleGuidedS
                   heightRange: "1.8-2.2m",
                   defaultHeight: 2.0,
                   power: "Cable to socket",
+                  icon: (
+                    <svg width="48" height="32" viewBox="0 0 48 32" className="mx-auto mb-3">
+                      {/* Pendant cables */}
+                      <line x1="12" y1="2" x2="12" y2="12" stroke="#6B7280" strokeWidth="1"/>
+                      <line x1="24" y1="2" x2="24" y2="12" stroke="#6B7280" strokeWidth="1"/>
+                      <line x1="36" y1="2" x2="36" y2="12" stroke="#6B7280" strokeWidth="1"/>
+                      {/* Pendant shades */}
+                      <ellipse cx="12" cy="15" rx="4" ry="3" fill="#374151"/>
+                      <ellipse cx="24" cy="15" rx="4" ry="3" fill="#374151"/>
+                      <ellipse cx="36" cy="15" rx="4" ry="3" fill="#374151"/>
+                      {/* Light beams */}
+                      <polygon points="8,18 16,18 14,28 10,28" fill="#FEF3C7" opacity="0.6"/>
+                      <polygon points="20,18 28,18 26,28 22,28" fill="#FEF3C7" opacity="0.6"/>
+                      <polygon points="32,18 40,18 38,28 34,28" fill="#FEF3C7" opacity="0.6"/>
+                    </svg>
+                  ),
                 },
                 {
                   id: "linear",
@@ -199,6 +229,20 @@ export function SimpleGuidedSetup({ isOpen, onClose, onComplete }: SimpleGuidedS
                   heightRange: "2.5-3.0m",
                   defaultHeight: 2.7,
                   power: "Driver box near socket",
+                  icon: (
+                    <svg width="48" height="32" viewBox="0 0 48 32" className="mx-auto mb-3">
+                      {/* Linear LED strip */}
+                      <rect x="6" y="12" width="36" height="6" fill="#374151" rx="3"/>
+                      {/* LED points */}
+                      <circle cx="12" cy="15" r="1.5" fill="#FDE047"/>
+                      <circle cx="18" cy="15" r="1.5" fill="#FDE047"/>
+                      <circle cx="24" cy="15" r="1.5" fill="#FDE047"/>
+                      <circle cx="30" cy="15" r="1.5" fill="#FDE047"/>
+                      <circle cx="36" cy="15" r="1.5" fill="#FDE047"/>
+                      {/* Uniform light beam */}
+                      <rect x="8" y="20" width="32" height="8" fill="#FEF3C7" opacity="0.6" rx="1"/>
+                    </svg>
+                  ),
                 },
               ].map((option) => (
                 <Card
@@ -216,6 +260,7 @@ export function SimpleGuidedSetup({ isOpen, onClose, onComplete }: SimpleGuidedS
                 >
                   <CardContent className="p-4 text-center">
                     {option.recommended && <Badge className="mb-2 bg-green-100 text-green-800">Recommended</Badge>}
+                    {option.icon}
                     <h4 className="font-medium mb-2">{option.name}</h4>
                     <p className="text-sm text-gray-600 mb-3">{option.desc}</p>
                     <div className="text-xs text-gray-500 space-y-1">

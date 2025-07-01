@@ -33,11 +33,11 @@ export function GuidedSetupWizard({ isOpen, onClose, onComplete }: GuidedSetupWi
   const [currentStepIndex, setCurrentStepIndex] = useState(0)
   const [completedSteps, setCompletedSteps] = useState<Set<string>>(new Set())
   const [setupData, setSetupData] = useState({
-    roomDimensions: null,
-    powerSource: null,
-    hangingType: null,
-    trackSystem: null,
-    components: [],
+    roomDimensions: null as any,
+    powerSource: null as string | null,
+    hangingType: null as string | null,
+    trackSystem: null as string | null,
+    components: [] as any[],
   })
 
   // Room Dimensions Step
@@ -145,23 +145,64 @@ export function GuidedSetupWizard({ isOpen, onClose, onComplete }: GuidedSetupWi
         id: "track-system",
         name: "Track System",
         description: "Flexible track with adjustable spotlights",
-        image: "/placeholder.svg?height=80&width=80&text=Track",
         recommended: true,
         features: ["Adjustable positioning", "Multiple light types", "Easy expansion"],
+        icon: (
+          <svg width="64" height="42" viewBox="0 0 64 42" className="w-16 h-16 rounded">
+            {/* Track base */}
+            <rect x="8" y="18" width="48" height="6" fill="#374151" rx="3"/>
+            {/* Spotlights */}
+            <circle cx="16" cy="21" r="4" fill="#6B7280"/>
+            <circle cx="32" cy="21" r="4" fill="#6B7280"/>
+            <circle cx="48" cy="21" r="4" fill="#6B7280"/>
+            {/* Light beams */}
+            <polygon points="12,27 20,27 16,38" fill="#FEF3C7" opacity="0.6"/>
+            <polygon points="28,27 36,27 32,38" fill="#FEF3C7" opacity="0.6"/>
+            <polygon points="44,27 52,27 48,38" fill="#FEF3C7" opacity="0.6"/>
+          </svg>
+        ),
       },
       {
         id: "pendant-lights",
         name: "Pendant Lights",
         description: "Individual hanging lights",
-        image: "/placeholder.svg?height=80&width=80&text=Pendant",
         features: ["Focused lighting", "Decorative options", "Simple installation"],
+        icon: (
+          <svg width="64" height="42" viewBox="0 0 64 42" className="w-16 h-16 rounded">
+            {/* Pendant cables */}
+            <line x1="16" y1="4" x2="16" y2="18" stroke="#6B7280" strokeWidth="2"/>
+            <line x1="32" y1="4" x2="32" y2="18" stroke="#6B7280" strokeWidth="2"/>
+            <line x1="48" y1="4" x2="48" y2="18" stroke="#6B7280" strokeWidth="2"/>
+            {/* Pendant shades */}
+            <ellipse cx="16" cy="22" rx="5" ry="4" fill="#374151"/>
+            <ellipse cx="32" cy="22" rx="5" ry="4" fill="#374151"/>
+            <ellipse cx="48" cy="22" rx="5" ry="4" fill="#374151"/>
+            {/* Light beams */}
+            <polygon points="11,26 21,26 19,38 13,38" fill="#FEF3C7" opacity="0.6"/>
+            <polygon points="27,26 37,26 35,38 29,38" fill="#FEF3C7" opacity="0.6"/>
+            <polygon points="43,26 53,26 51,38 45,38" fill="#FEF3C7" opacity="0.6"/>
+          </svg>
+        ),
       },
       {
         id: "linear-system",
         name: "Linear System",
         description: "Continuous linear lighting",
-        image: "/placeholder.svg?height=80&width=80&text=Linear",
         features: ["Uniform lighting", "Modern appearance", "Energy efficient"],
+        icon: (
+          <svg width="64" height="42" viewBox="0 0 64 42" className="w-16 h-16 rounded">
+            {/* Linear LED strip */}
+            <rect x="8" y="16" width="48" height="8" fill="#374151" rx="4"/>
+            {/* LED points */}
+            <circle cx="16" cy="20" r="2" fill="#FDE047"/>
+            <circle cx="24" cy="20" r="2" fill="#FDE047"/>
+            <circle cx="32" cy="20" r="2" fill="#FDE047"/>
+            <circle cx="40" cy="20" r="2" fill="#FDE047"/>
+            <circle cx="48" cy="20" r="2" fill="#FDE047"/>
+            {/* Uniform light beam */}
+            <rect x="10" y="26" width="44" height="12" fill="#FEF3C7" opacity="0.6" rx="2"/>
+          </svg>
+        ),
       },
     ]
 
@@ -186,7 +227,7 @@ export function GuidedSetupWizard({ isOpen, onClose, onComplete }: GuidedSetupWi
             >
               <CardContent className="p-4">
                 <div className="flex items-start gap-4">
-                  <img src={option.image || "/placeholder.svg"} alt={option.name} className="w-16 h-16 rounded" />
+                  {option.icon}
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-2">
                       <h4 className="font-medium">{option.name}</h4>

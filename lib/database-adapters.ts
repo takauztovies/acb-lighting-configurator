@@ -246,9 +246,20 @@ export class RestAPIAdapter implements DatabaseAdapter {
     const headers: HeadersInit = {
       "Content-Type": "application/json",
     }
+    
+    // Try to get admin token from localStorage for authentication
+    if (typeof window !== 'undefined') {
+      const adminToken = localStorage.getItem('admin-token')
+      if (adminToken) {
+        headers["Authorization"] = `Bearer ${adminToken}`
+      }
+    }
+    
+    // Fallback to configured API key
     if (this.apiKey) {
       headers["Authorization"] = `Bearer ${this.apiKey}`
     }
+    
     return headers
   }
 

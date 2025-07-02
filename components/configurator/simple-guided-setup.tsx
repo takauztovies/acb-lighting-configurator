@@ -144,7 +144,7 @@ export function SimpleGuidedSetup({ isOpen, onClose, onComplete }: SimpleGuidedS
         return (
           <div className="space-y-4">
             <div className="text-center mb-6">
-              <Home className="h-12 w-12 mx-auto mb-4 text-blue-600" />
+              <Home className="h-12 w-12 mx-auto mb-4 text-gray-900" />
               <h3 className="text-xl font-semibold mb-2">Set Up Your Room</h3>
               <p className="text-gray-600">Configure your room dimensions for accurate lighting placement.</p>
             </div>
@@ -168,7 +168,7 @@ export function SimpleGuidedSetup({ isOpen, onClose, onComplete }: SimpleGuidedS
         return (
           <div className="space-y-4">
             <div className="text-center mb-6">
-              <Link className="h-12 w-12 mx-auto mb-4 text-purple-600" />
+              <Link className="h-12 w-12 mx-auto mb-4 text-gray-900" />
               <h3 className="text-xl font-semibold mb-2">Choose Hanging Type & Height</h3>
               <p className="text-gray-600">Select the type of lighting system and installation height.</p>
             </div>
@@ -248,7 +248,7 @@ export function SimpleGuidedSetup({ isOpen, onClose, onComplete }: SimpleGuidedS
                 <Card
                   key={option.id}
                   className={`cursor-pointer transition-all ${
-                    setupData.hangingType === option.id ? "ring-2 ring-blue-500 bg-blue-50" : "hover:bg-gray-50"
+                    setupData.hangingType === option.id ? "ring-2 ring-gray-900 bg-gray-50" : "hover:bg-gray-50"
                   }`}
                   onClick={() =>
                     setSetupData((prev) => ({
@@ -259,7 +259,7 @@ export function SimpleGuidedSetup({ isOpen, onClose, onComplete }: SimpleGuidedS
                   }
                 >
                   <CardContent className="p-4 text-center">
-                    {option.recommended && <Badge className="mb-2 bg-green-100 text-green-800">Recommended</Badge>}
+                    {option.recommended && <Badge className="mb-2 bg-gray-100 text-gray-800">Recommended</Badge>}
                     {option.icon}
                     <h4 className="font-medium mb-2">{option.name}</h4>
                     <p className="text-sm text-gray-600 mb-3">{option.desc}</p>
@@ -275,13 +275,13 @@ export function SimpleGuidedSetup({ isOpen, onClose, onComplete }: SimpleGuidedS
 
             {/* Height adjustment */}
             {setupData.hangingType && (
-              <Card className="bg-blue-50 border-blue-200">
-                <CardContent className="p-4">
-                  <h4 className="font-medium text-blue-900 mb-3">Adjust Hanging Height</h4>
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-blue-800">Current height:</span>
-                      <span className="font-medium text-blue-900">{setupData.hangingHeight}m</span>
+                          <Card className="bg-gray-50 border-gray-200">
+              <CardContent className="p-4">
+                <h4 className="font-medium text-gray-900 mb-3">Adjust Hanging Height</h4>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-gray-800">Current height:</span>
+                    <span className="font-medium text-gray-900">{setupData.hangingHeight}m</span>
                     </div>
                     <input
                       type="range"
@@ -300,7 +300,7 @@ export function SimpleGuidedSetup({ isOpen, onClose, onComplete }: SimpleGuidedS
                       title="Adjust hanging height"
                       placeholder="Adjust hanging height"
                     />
-                    <div className="text-xs text-blue-700">
+                    <div className="text-xs text-gray-700">
                       Recommended range:{" "}
                       {setupData.hangingType === "pendant"
                         ? "1.8-2.2m"
@@ -314,9 +314,9 @@ export function SimpleGuidedSetup({ isOpen, onClose, onComplete }: SimpleGuidedS
             )}
 
             {setupData.socketPosition && (
-              <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg">
-                <h4 className="font-medium text-blue-900 mb-2">Based on your socket position:</h4>
-                <p className="text-sm text-blue-800">
+                          <div className="bg-gray-50 border border-gray-200 p-4 rounded-lg">
+              <h4 className="font-medium text-gray-900 mb-2">Based on your socket position:</h4>
+              <p className="text-sm text-gray-800">
                   Socket on {setupData.socketPosition.wall} wall, {setupData.socketPosition.description.toLowerCase()} -
                   {setupData.socketPosition.wall === "ceiling"
                     ? " Perfect for direct ceiling mount systems"
@@ -331,7 +331,7 @@ export function SimpleGuidedSetup({ isOpen, onClose, onComplete }: SimpleGuidedS
         return (
           <div className="space-y-4">
             <div className="text-center mb-6">
-              <Settings className="h-12 w-12 mx-auto mb-4 text-green-600" />
+              <Settings className="h-12 w-12 mx-auto mb-4 text-gray-900" />
               <h3 className="text-xl font-semibold mb-2">Configure Layout</h3>
               <p className="text-gray-600">
                 Set up your {setupData.hangingType} layout at {setupData.hangingHeight}m height.
@@ -368,13 +368,13 @@ export function SimpleGuidedSetup({ isOpen, onClose, onComplete }: SimpleGuidedS
                 <Card
                   key={option.id}
                   className={`cursor-pointer transition-all ${
-                    setupData.trackLayout?.type === option.id ? "ring-2 ring-blue-500 bg-blue-50" : "hover:bg-gray-50"
+                    setupData.trackLayout?.type === option.id ? "ring-2 ring-gray-900 bg-gray-50" : "hover:bg-gray-50"
                   }`}
                   onClick={() => setSetupData((prev) => ({ ...prev, trackLayout: { type: option.id, orientation: "default" } }))}
                 >
                   <CardContent className="p-4 text-center">
-                    <Badge
-                      className={`mb-2 ${option.type === "preset" ? "bg-purple-100 text-purple-800" : "bg-orange-100 text-orange-800"}`}
+                                        <Badge 
+                      className={`mb-2 ${option.type === "preset" ? "bg-gray-100 text-gray-800" : "bg-gray-100 text-gray-800"}`}
                     >
                       {option.type === "preset" ? "Preset" : "Custom"}
                     </Badge>

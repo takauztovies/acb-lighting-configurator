@@ -42,9 +42,9 @@ const HANGING_TYPES = {
         <circle cx="24" cy="16" r="3" fill="#6B7280"/>
         <circle cx="36" cy="16" r="3" fill="#6B7280"/>
         {/* Light beams */}
-        <polygon points="10,22 14,22 12,28" fill="#FEF3C7" opacity="0.6"/>
-        <polygon points="22,22 26,22 24,28" fill="#FEF3C7" opacity="0.6"/>
-        <polygon points="34,22 38,22 36,28" fill="#FEF3C7" opacity="0.6"/>
+        <polygon points="10,22 14,22 12,28" fill="#F3F4F6" opacity="0.8"/>
+        <polygon points="22,22 26,22 24,28" fill="#F3F4F6" opacity="0.8"/>
+        <polygon points="34,22 38,22 36,28" fill="#F3F4F6" opacity="0.8"/>
       </svg>
     ),
   },
@@ -66,9 +66,9 @@ const HANGING_TYPES = {
         <ellipse cx="24" cy="15" rx="4" ry="3" fill="#374151"/>
         <ellipse cx="36" cy="15" rx="4" ry="3" fill="#374151"/>
         {/* Light beams */}
-        <polygon points="8,18 16,18 14,28 10,28" fill="#FEF3C7" opacity="0.6"/>
-        <polygon points="20,18 28,18 26,28 22,28" fill="#FEF3C7" opacity="0.6"/>
-        <polygon points="32,18 40,18 38,28 34,28" fill="#FEF3C7" opacity="0.6"/>
+        <polygon points="8,18 16,18 14,28 10,28" fill="#F3F4F6" opacity="0.8"/>
+        <polygon points="20,18 28,18 26,28 22,28" fill="#F3F4F6" opacity="0.8"/>
+        <polygon points="32,18 40,18 38,28 34,28" fill="#F3F4F6" opacity="0.8"/>
       </svg>
     ),
   },
@@ -84,13 +84,13 @@ const HANGING_TYPES = {
         {/* Linear LED strip */}
         <rect x="6" y="12" width="36" height="6" fill="#374151" rx="3"/>
         {/* LED points */}
-        <circle cx="12" cy="15" r="1.5" fill="#FDE047"/>
-        <circle cx="18" cy="15" r="1.5" fill="#FDE047"/>
-        <circle cx="24" cy="15" r="1.5" fill="#FDE047"/>
-        <circle cx="30" cy="15" r="1.5" fill="#FDE047"/>
-        <circle cx="36" cy="15" r="1.5" fill="#FDE047"/>
+        <circle cx="12" cy="15" r="1.5" fill="#D1D5DB"/>
+        <circle cx="18" cy="15" r="1.5" fill="#D1D5DB"/>
+        <circle cx="24" cy="15" r="1.5" fill="#D1D5DB"/>
+        <circle cx="30" cy="15" r="1.5" fill="#D1D5DB"/>
+        <circle cx="36" cy="15" r="1.5" fill="#D1D5DB"/>
         {/* Uniform light beam */}
-        <rect x="8" y="20" width="32" height="8" fill="#FEF3C7" opacity="0.6" rx="1"/>
+        <rect x="8" y="20" width="32" height="8" fill="#F3F4F6" opacity="0.8" rx="1"/>
       </svg>
     ),
   },
@@ -246,7 +246,7 @@ export function EnhancedGuidedSetup({ isOpen, onClose, onComplete }: EnhancedGui
         return (
           <div className="space-y-4">
             <div className="text-center mb-6">
-              <Home className="h-12 w-12 mx-auto mb-4 text-blue-600" />
+              <Home className="h-12 w-12 mx-auto mb-4 text-gray-900" />
               <h3 className="text-xl font-semibold mb-2">Set Up Your Room</h3>
               <p className="text-gray-600">Configure your room dimensions for accurate lighting placement.</p>
             </div>
@@ -270,7 +270,7 @@ export function EnhancedGuidedSetup({ isOpen, onClose, onComplete }: EnhancedGui
         return (
           <div className="space-y-6">
             <div className="text-center mb-6">
-              <Link className="h-12 w-12 mx-auto mb-4 text-purple-600" />
+              <Link className="h-12 w-12 mx-auto mb-4 text-gray-900" />
               <h3 className="text-xl font-semibold mb-2">Choose Hanging Type & Height</h3>
               <p className="text-gray-600">Select the lighting system and set the hanging height.</p>
             </div>
@@ -281,13 +281,13 @@ export function EnhancedGuidedSetup({ isOpen, onClose, onComplete }: EnhancedGui
                 <Card
                   key={typeId}
                   className={`cursor-pointer transition-all ${
-                    setupData.hangingType === typeId ? "ring-2 ring-blue-500 bg-blue-50" : "hover:bg-gray-50"
+                    setupData.hangingType === typeId ? "ring-2 ring-gray-900 bg-gray-50" : "hover:bg-gray-50"
                   }`}
                   onClick={() => handleHangingTypeSelect(typeId)}
                 >
                   <CardContent className="p-4 text-center">
                     {"recommended" in type && type.recommended && (
-                      <Badge className="mb-2 bg-green-100 text-green-800">Recommended</Badge>
+                      <Badge className="mb-2 bg-gray-100 text-gray-800">Recommended</Badge>
                     )}
                     {type.icon}
                     <h4 className="font-medium mb-2">{type.name}</h4>
@@ -335,9 +335,9 @@ export function EnhancedGuidedSetup({ isOpen, onClose, onComplete }: EnhancedGui
 
             {/* Socket Position Context */}
             {setupData.socketPosition && setupData.hangingType && (
-              <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg">
-                <h4 className="font-medium text-blue-900 mb-2">Configuration Preview:</h4>
-                <div className="text-sm text-blue-800 space-y-1">
+              <div className="bg-gray-50 border border-gray-200 p-4 rounded-lg">
+                <h4 className="font-medium text-gray-900 mb-2">Configuration Preview:</h4>
+                <div className="text-sm text-gray-800 space-y-1">
                   <div>
                     Socket: {setupData.socketPosition.wall} wall, {setupData.socketPosition.description?.toLowerCase()}
                   </div>
@@ -365,7 +365,7 @@ export function EnhancedGuidedSetup({ isOpen, onClose, onComplete }: EnhancedGui
         return (
           <div className="space-y-6">
             <div className="text-center mb-6">
-              <Settings className="h-12 w-12 mx-auto mb-4 text-green-600" />
+              <Settings className="h-12 w-12 mx-auto mb-4 text-gray-900" />
               <h3 className="text-xl font-semibold mb-2">Configure Track Layout</h3>
               <p className="text-gray-600">Choose a preset created by admins or create a custom layout.</p>
             </div>
@@ -374,14 +374,14 @@ export function EnhancedGuidedSetup({ isOpen, onClose, onComplete }: EnhancedGui
             <div className="grid grid-cols-2 gap-4 mb-6">
               <Card
                 className={`cursor-pointer transition-all ${
-                  setupData.trackLayout.type === "preset" ? "ring-2 ring-blue-500 bg-blue-50" : "hover:bg-gray-50"
+                  setupData.trackLayout.type === "preset" ? "ring-2 ring-gray-900 bg-gray-50" : "hover:bg-gray-50"
                 }`}
                 onClick={() =>
                   setSetupData((prev) => ({ ...prev, trackLayout: { ...prev.trackLayout, type: "preset" } }))
                 }
               >
                 <CardContent className="p-4 text-center">
-                  <Grid className="h-8 w-8 mx-auto mb-2 text-blue-600" />
+                  <Grid className="h-8 w-8 mx-auto mb-2 text-gray-900" />
                   <h4 className="font-medium mb-1">Use Admin Preset</h4>
                   <p className="text-sm text-gray-600">Start with a pre-designed layout</p>
                 </CardContent>
@@ -389,14 +389,14 @@ export function EnhancedGuidedSetup({ isOpen, onClose, onComplete }: EnhancedGui
 
               <Card
                 className={`cursor-pointer transition-all ${
-                  setupData.trackLayout.type === "custom" ? "ring-2 ring-blue-500 bg-blue-50" : "hover:bg-gray-50"
+                  setupData.trackLayout.type === "custom" ? "ring-2 ring-gray-900 bg-gray-50" : "hover:bg-gray-50"
                 }`}
                 onClick={() =>
                   setSetupData((prev) => ({ ...prev, trackLayout: { ...prev.trackLayout, type: "custom" } }))
                 }
               >
                 <CardContent className="p-4 text-center">
-                  <Palette className="h-8 w-8 mx-auto mb-2 text-purple-600" />
+                  <Palette className="h-8 w-8 mx-auto mb-2 text-gray-900" />
                   <h4 className="font-medium mb-1">Custom Layout</h4>
                   <p className="text-sm text-gray-600">Build your own configuration</p>
                 </CardContent>
@@ -428,7 +428,7 @@ export function EnhancedGuidedSetup({ isOpen, onClose, onComplete }: EnhancedGui
                         key={preset.id}
                         className={`cursor-pointer transition-all ${
                           setupData.trackLayout.preset === preset.id
-                            ? "ring-2 ring-blue-500 bg-blue-50"
+                            ? "ring-2 ring-gray-900 bg-gray-50"
                             : "hover:bg-gray-50"
                         }`}
                         onClick={() =>
@@ -449,14 +449,14 @@ export function EnhancedGuidedSetup({ isOpen, onClose, onComplete }: EnhancedGui
                 )}
 
                 {setupData.trackLayout.preset && (
-                  <div className="bg-green-50 border border-green-200 p-4 rounded-lg">
-                    <h4 className="font-medium text-green-900 mb-2">
+                  <div className="bg-gray-50 border border-gray-200 p-4 rounded-lg">
+                    <h4 className="font-medium text-gray-900 mb-2">
                       Preset Selected: {trackPresets.find((p) => p.id === setupData.trackLayout.preset)?.name}
                     </h4>
-                    <p className="text-sm text-green-800 mb-3">
+                    <p className="text-sm text-gray-800 mb-3">
                       {trackPresets.find((p) => p.id === setupData.trackLayout.preset)?.description}
                     </p>
-                    <div className="text-xs text-green-700">
+                    <div className="text-xs text-gray-700">
                       You can customize this preset after setup by adding, removing, or repositioning components.
                     </div>
                   </div>
@@ -466,12 +466,12 @@ export function EnhancedGuidedSetup({ isOpen, onClose, onComplete }: EnhancedGui
 
             {/* Custom Layout Info */}
             {setupData.trackLayout.type === "custom" && (
-              <div className="bg-purple-50 border border-purple-200 p-4 rounded-lg">
-                <h4 className="font-medium text-purple-900 mb-2">Custom Layout Mode</h4>
-                <p className="text-sm text-purple-800 mb-3">
+              <div className="bg-gray-50 border border-gray-200 p-4 rounded-lg">
+                <h4 className="font-medium text-gray-900 mb-2">Custom Layout Mode</h4>
+                <p className="text-sm text-gray-800 mb-3">
                   You'll start with an empty canvas and build your lighting system component by component.
                 </p>
-                <div className="text-xs text-purple-700 space-y-1">
+                <div className="text-xs text-gray-700 space-y-1">
                   <div>• Select components from the sidebar</div>
                   <div>• Click on highlighted snap points to place components</div>
                   <div>• Connect components using the snap system</div>
@@ -541,15 +541,15 @@ export function EnhancedGuidedSetup({ isOpen, onClose, onComplete }: EnhancedGui
                   key={step.id}
                   className={`p-3 rounded text-center text-xs ${
                     index === currentStep
-                      ? "bg-blue-100 border-2 border-blue-500"
+                      ? "bg-gray-100 border-2 border-gray-900"
                       : index < currentStep
-                        ? "bg-green-100 border border-green-500"
+                        ? "bg-gray-50 border border-gray-900"
                         : "bg-gray-100 border border-gray-300"
                   }`}
                 >
                   <div className="flex items-center justify-center mb-2">
                     {index < currentStep ? (
-                      <CheckCircle className="h-4 w-4 text-green-600" />
+                      <CheckCircle className="h-4 w-4 text-gray-900" />
                     ) : (
                       <Circle className="h-4 w-4 text-gray-400" />
                     )}

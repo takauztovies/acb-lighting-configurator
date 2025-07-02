@@ -1,14 +1,16 @@
 "use client"
 
-import { useCallback, useEffect } from "react"
+import { useCallback, useEffect, useRef } from "react"
 import { useConfigurator } from "./configurator-context"
 import Scene3D from "./scene-3d"
 import { TransformControls } from "./transform-controls"
+import { EnhancedCameraControls } from "./enhanced-camera-controls"
 import { Button } from "@/components/ui/button"
-import { Grid3X3, CircleDot, Trash2, X, Target } from "lucide-react"
+import { Trash2, X, Target } from "lucide-react"
 
 export function ConfiguratorViewer() {
   const { state, dispatch } = useConfigurator()
+  const orbitControlsRef = useRef(null)
 
   // Handle component selection
   const handleComponentClick = useCallback(
@@ -246,39 +248,20 @@ export function ConfiguratorViewer() {
         </div>
       )}
 
-      {/* Toolbar */}
-      <div className="absolute top-4 right-4 flex gap-2">
-        <Button
-          variant={state.gridVisible ? "default" : "outline"}
-          size="icon"
-          onClick={toggleGrid}
-          title="Toggle Grid"
-        >
-          <Grid3X3 className="h-4 w-4" />
-        </Button>
-        <Button
-          variant={state.showLabels ? "default" : "outline"}
-          size="icon"
-          onClick={toggleSnapPoints}
-          title="Toggle Snap Points"
-        >
-          <CircleDot className="h-4 w-4" />
-        </Button>
-        {state.selectedComponentIds.length > 0 && (
-          <Button
-            variant="destructive"
-            size="icon"
-            onClick={deleteSelectedComponents}
-            title="Delete Selected Components"
-          >
-            <Trash2 className="h-4 w-4" />
-          </Button>
-        )}
-      </div>
+      {/* Enhanced Camera Controls with integrated toolbar (includes delete functionality) */}
+      <EnhancedCameraControls 
+        orbitControlsRef={orbitControlsRef}
+        onToggleGrid={toggleGrid}
+        onToggleSnapPoints={toggleSnapPoints}
+        onDeleteSelected={deleteSelectedComponents}
+        gridVisible={state.gridVisible}
+        showLabels={state.showLabels}
+        selectedComponentsCount={state.selectedComponentIds.length}
+      />
 
       {/* Snap Point Selection Indicator */}
       {state.selectedSnapPoint && (
-        <div className="absolute top-4 left-96 bg-green-500 text-white p-3 rounded-lg shadow-lg max-w-sm">
+        <div className="absolute top-4 left-96 bg-gray-900 text-white p-3 rounded-lg shadow-lg max-w-sm">
           <div className="flex items-center gap-2">
             <Target className="h-5 w-5" />
             <div className="flex-1">
@@ -309,7 +292,7 @@ export function ConfiguratorViewer() {
               : "No component selected"}
           </span>
           {state.selectedSnapPoint && (
-            <span className="text-green-600 font-medium">• Snap point ready for connection</span>
+            <span className="text-gray-900 font-medium">• Snap point ready for connection</span>
           )}
         </div>
         <div className="flex items-center gap-4">

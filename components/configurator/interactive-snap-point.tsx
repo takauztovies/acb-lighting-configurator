@@ -133,7 +133,7 @@ export function InteractiveSnapPoint({
             </div>
             <div className="text-gray-600 mb-2">Type: {snapPoint.type}</div>
 
-            {compatibleComponents.length > 0 && <div className="text-green-600 text-xs">Click to add component</div>}
+            {compatibleComponents.length > 0 && <div className="text-gray-900 text-xs">Click to add component</div>}
 
             {compatibleComponents.length === 0 && <div className="text-gray-500 text-xs">No compatible components</div>}
           </div>

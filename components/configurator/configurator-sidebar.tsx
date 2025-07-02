@@ -173,8 +173,8 @@ export function ConfiguratorSidebar() {
     return (
       <div className="w-[150px] bg-white border-r border-gray-200 p-2">
         <div className="text-center p-4">
-          <AlertCircle className="h-8 w-8 text-red-500 mx-auto mb-2" />
-          <p className="text-red-500 font-medium mb-2">{t("errorLoadingComponents")}</p>
+                  <AlertCircle className="h-8 w-8 text-gray-900 mx-auto mb-2" />
+        <p className="text-gray-900 font-medium mb-2">{t("errorLoadingComponents")}</p>
           <p className="text-sm text-gray-600 mb-4">{state.componentLoadError}</p>
           <Button
             onClick={handleRefreshComponents}

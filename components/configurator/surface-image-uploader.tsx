@@ -113,7 +113,7 @@ export function SurfaceImageUploader() {
                   <div className="flex items-center justify-between w-full">
                     <span>{surface.name}</span>
                     {getImageForSurface(surface.id) && (
-                      <ImageIcon className="w-3 h-3 ml-2 text-green-600" />
+                      <ImageIcon className="w-3 h-3 ml-2 text-gray-900" />
                     )}
                   </div>
                 </SelectItem>
@@ -197,7 +197,7 @@ export function SurfaceImageUploader() {
                 <div 
                   key={surface.id}
                   className={`flex items-center justify-between p-2 rounded border ${
-                    selectedSurface === surface.id ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+                    selectedSurface === surface.id ? 'border-gray-900 bg-gray-50' : 'border-gray-200'
                   }`}
                 >
                   <div 
@@ -205,7 +205,7 @@ export function SurfaceImageUploader() {
                     onClick={() => setSelectedSurface(surface.id)}
                   >
                     {hasImage ? (
-                      <Eye className="w-3 h-3 text-green-600" />
+                      <Eye className="w-3 h-3 text-gray-900" />
                     ) : (
                       <EyeOff className="w-3 h-3 text-gray-400" />
                     )}

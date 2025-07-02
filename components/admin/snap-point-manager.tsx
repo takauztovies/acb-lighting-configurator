@@ -51,8 +51,8 @@ export function SnapPointManager({ components, onSnapPointsUpdated }: SnapPointM
   const handleSnapPointsUpdated = (updatedComponent: ComponentData) => {
     setSelectedComponent(updatedComponent)
     onSnapPointsUpdated(updatedComponent)
-    setSaveStatus("Component snap points updated successfully!")
-    setTimeout(() => setSaveStatus(""), 3000)
+    setSaveStatus(`✅ Snap points updated for "${updatedComponent.name}" successfully! Component edited, not duplicated.`)
+    setTimeout(() => setSaveStatus(""), 4000)
   }
 
   return (
@@ -66,6 +66,11 @@ export function SnapPointManager({ components, onSnapPointsUpdated }: SnapPointM
         </CardHeader>
         <CardContent className="space-y-4">
           {saveStatus && <div className="mb-4 text-sm p-2 rounded bg-green-100 text-green-700">{saveStatus}</div>}
+          
+          <div className="text-xs text-blue-600 bg-blue-50 p-3 rounded-lg border border-blue-200">
+            📝 <strong>Edit Mode:</strong> Changes made here will update the existing component and save the modified snap points. 
+            No new components will be created.
+          </div>
 
           {/* Component Selection */}
           <div>

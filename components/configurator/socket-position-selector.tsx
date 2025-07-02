@@ -176,17 +176,17 @@ export function SocketPositionSelector({
 
   const wallDims = getWallDimensions(selectedWall)
   const wallColors: Record<string, string> = {
-    back: "bg-blue-50 border-blue-200",
-    front: "bg-orange-50 border-orange-200",
-    left: "bg-green-50 border-green-200",
-    right: "bg-purple-50 border-purple-200",
-    ceiling: "bg-yellow-50 border-yellow-200",
+    back: "bg-gray-50 border-gray-200",
+    front: "bg-gray-50 border-gray-200",
+    left: "bg-gray-50 border-gray-200",
+    right: "bg-gray-50 border-gray-200",
+    ceiling: "bg-gray-50 border-gray-200",
   }
 
   return (
     <div className="space-y-6">
       <div className="text-center mb-6">
-        <Zap className="h-12 w-12 mx-auto mb-4 text-yellow-600" />
+        <Zap className="h-12 w-12 mx-auto mb-4 text-gray-900" />
         <h3 className="text-xl font-semibold mb-2">Position Your Power Socket</h3>
         <p className="text-gray-600">Choose the wall and exact position for your electrical socket.</p>
       </div>
@@ -206,7 +206,7 @@ export function SocketPositionSelector({
               key={wall.id}
               variant={selectedWall === wall.id ? "default" : "outline"}
               onClick={() => handleWallSelect(wall.id)}
-              className={`h-auto p-3 text-center ${selectedWall === wall.id ? "bg-blue-600 text-white" : ""}`}
+              className={`h-auto p-3 text-center ${selectedWall === wall.id ? "bg-gray-900 text-white" : ""}`}
             >
               <div>
                 <div className="text-lg mb-1">{wall.icon}</div>
@@ -253,7 +253,7 @@ export function SocketPositionSelector({
               {/* Socket position indicator */}
               {selectedPosition && (
                 <div
-                  className="absolute w-4 h-4 bg-yellow-500 border-2 border-yellow-700 rounded-full transform -translate-x-2 -translate-y-2 shadow-lg z-10"
+                  className="absolute w-4 h-4 bg-gray-900 border-2 border-gray-700 rounded-full transform -translate-x-2 -translate-y-2 shadow-lg z-10"
                   style={{
                     left: `${((customPosition.x + wallDims.width / 2) / wallDims.width) * 100}%`,
                     top:
@@ -262,7 +262,7 @@ export function SocketPositionSelector({
                         : `${(1 - customPosition.y / wallDims.height) * 100}%`,
                   }}
                 >
-                  <Zap className="h-3 w-3 text-yellow-700 absolute top-0.5 left-0.5" />
+                  <Zap className="h-3 w-3 text-white absolute top-0.5 left-0.5" />
                 </div>
               )}
 
@@ -271,7 +271,7 @@ export function SocketPositionSelector({
                 <>
                   {/* Horizontal measurement */}
                   <div
-                    className="absolute border-t-2 border-blue-500 opacity-75"
+                    className="absolute border-t-2 border-gray-900 opacity-75"
                     style={{
                       left: "10px",
                       right: `${100 - ((customPosition.x + wallDims.width / 2) / wallDims.width) * 100}%`,
@@ -279,7 +279,7 @@ export function SocketPositionSelector({
                     }}
                   />
                   <div
-                    className="absolute text-xs bg-blue-500 text-white px-1 rounded transform -translate-x-1/2"
+                    className="absolute text-xs bg-gray-900 text-white px-1 rounded transform -translate-x-1/2"
                     style={{
                       left: `${((customPosition.x + wallDims.width / 2) / wallDims.width) * 50}%`,
                       bottom: "5px",
@@ -292,7 +292,7 @@ export function SocketPositionSelector({
                   {selectedWall !== "ceiling" && (
                     <>
                       <div
-                        className="absolute border-l-2 border-green-500 opacity-75"
+                        className="absolute border-l-2 border-gray-900 opacity-75"
                         style={{
                           left: "10px",
                           bottom: "10px",
@@ -300,7 +300,7 @@ export function SocketPositionSelector({
                         }}
                       />
                       <div
-                        className="absolute text-xs bg-green-500 text-white px-1 rounded transform -translate-y-1/2"
+                        className="absolute text-xs bg-gray-900 text-white px-1 rounded transform -translate-y-1/2"
                         style={{
                           left: "5px",
                           top: `${(1 - customPosition.y / wallDims.height) * 100}%`,
@@ -386,13 +386,13 @@ export function SocketPositionSelector({
                 {/* Socket indicator in room view */}
                 {selectedPosition && (
                   <div
-                    className="absolute w-3 h-3 rounded-full bg-yellow-500 border-2 border-yellow-700 transform -translate-x-1/2 -translate-y-1/2"
+                    className="absolute w-3 h-3 rounded-full bg-gray-900 border-2 border-gray-700 transform -translate-x-1/2 -translate-y-1/2"
                     style={{
                       left: `${((selectedPosition.x + roomDimensions.width / 2) / roomDimensions.width) * 100}%`,
                       top: `${((selectedPosition.z + roomDimensions.length / 2) / roomDimensions.length) * 100}%`,
                     }}
                   >
-                    <Zap className="h-2 w-2 text-yellow-700 absolute top-0.5 left-0.5" />
+                    <Zap className="h-2 w-2 text-white absolute top-0.5 left-0.5" />
                   </div>
                 )}
 
@@ -400,15 +400,15 @@ export function SocketPositionSelector({
                 <div
                   className={`absolute border-4 ${
                     selectedWall === "back"
-                      ? "border-blue-500 top-0 left-0 right-0 h-1"
+                      ? "border-gray-900 top-0 left-0 right-0 h-1"
                       : selectedWall === "front"
-                        ? "border-orange-500 bottom-0 left-0 right-0 h-1"
+                        ? "border-gray-900 bottom-0 left-0 right-0 h-1"
                         : selectedWall === "left"
-                          ? "border-green-500 left-0 top-0 bottom-0 w-1"
+                          ? "border-gray-900 left-0 top-0 bottom-0 w-1"
                           : selectedWall === "right"
-                            ? "border-purple-500 right-0 top-0 bottom-0 w-1"
+                            ? "border-gray-900 right-0 top-0 bottom-0 w-1"
                             : selectedWall === "ceiling"
-                              ? "border-yellow-500 inset-0 opacity-20"
+                              ? "border-gray-900 inset-0 opacity-20"
                               : ""
                   } opacity-75`}
                 />
@@ -418,20 +418,20 @@ export function SocketPositionSelector({
             {/* Position details */}
             {selectedPosition && (
               <div className="grid grid-cols-2 gap-2 mt-4 text-xs">
-                <div className="p-2 bg-blue-50 border border-blue-200 rounded">
-                  <div className="font-medium text-blue-800">Wall</div>
+                <div className="p-2 bg-gray-50 border border-gray-200 rounded">
+                  <div className="font-medium text-gray-800">Wall</div>
                   <div>{selectedPosition.wall}</div>
                 </div>
-                <div className="p-2 bg-blue-50 border border-blue-200 rounded">
-                  <div className="font-medium text-blue-800">Position</div>
+                <div className="p-2 bg-gray-50 border border-gray-200 rounded">
+                  <div className="font-medium text-gray-800">Position</div>
                   <div>{selectedPosition.description}</div>
                 </div>
-                <div className="p-2 bg-green-50 border border-green-200 rounded">
-                  <div className="font-medium text-green-800">From Left</div>
+                <div className="p-2 bg-gray-50 border border-gray-200 rounded">
+                  <div className="font-medium text-gray-800">From Left</div>
                   <div>{selectedPosition.distanceFromLeft?.toFixed(2)}m</div>
                 </div>
-                <div className="p-2 bg-green-50 border border-green-200 rounded">
-                  <div className="font-medium text-green-800">
+                <div className="p-2 bg-gray-50 border border-gray-200 rounded">
+                  <div className="font-medium text-gray-800">
                     {selectedPosition.wall === "ceiling" ? "From Back" : "From Bottom"}
                   </div>
                   <div>{selectedPosition.distanceFromBottom?.toFixed(2)}m</div>
@@ -472,7 +472,7 @@ export function SocketPositionSelector({
       </div>
 
       {/* Tips */}
-      <div className="text-xs text-gray-500 bg-blue-50 border border-blue-200 p-3 rounded-lg">
+      <div className="text-xs text-gray-500 bg-gray-50 border border-gray-200 p-3 rounded-lg">
         <strong>💡 Tips:</strong>
         <ul className="mt-2 space-y-1 list-disc list-inside">
           <li>Click anywhere on the wall layout to place the socket precisely</li>

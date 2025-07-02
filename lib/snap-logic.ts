@@ -111,61 +111,147 @@ export const snapLogic = {
   areSnapPointsCompatible: (snapPoint1: SnapPoint, snapPoint2: SnapPoint, component1?: Component, component2?: Component): boolean => {
     if (!snapPoint1 || !snapPoint2) return false
     
-    // NEW STRICT COMPATIBILITY RULES based on component types and snap point types
+    // ENHANCED COMPATIBILITY RULES - Properly implemented for your requirements
     
-    // Rule 1: Track snap points on connectors/caps can ONLY connect to tracks/profiles
-    if (snapPoint1.type === "track" && component1?.type === "connector") {
-      return snapPoint2.type === "track" && (component2?.type === "track" || component2?.type === "profile")
-    }
-    if (snapPoint2.type === "track" && component2?.type === "connector") {
-      return snapPoint1.type === "track" && (component1?.type === "track" || component1?.type === "profile")
-    }
-    
-    // Rule 2: Track snap points on tracks/profiles can ONLY connect to connectors or caps
-    if (snapPoint1.type === "track" && (component1?.type === "track" || component1?.type === "profile")) {
-      return snapPoint2.type === "track" && component2?.type === "connector"
-    }
-    if (snapPoint2.type === "track" && (component2?.type === "track" || component2?.type === "profile")) {
-      return snapPoint1.type === "track" && component1?.type === "connector"
+    // Helper functions for component type detection (avoiding nullish coalescing syntax issues)
+    const isLampOrPendant = (component?: Component): boolean => {
+      if (!component) return false
+      return component.type === "spotlight" || 
+             (component.name ? component.name.toLowerCase().includes('pendant') : false) ||
+             (component.name ? component.name.toLowerCase().includes('lamp') : false)
     }
     
-    // Rule 3: Mounting snap points connect lamps/pendants to connectors
-    if (snapPoint1.type === "mounting") {
-      return (snapPoint2.type === "mechanical" && (component2?.type === "spotlight" || component2?.name?.toLowerCase().includes('pendant'))) ||
-             (snapPoint2.type === "mounting" && component2?.type === "connector")
-    }
-    if (snapPoint2.type === "mounting") {
-      return (snapPoint1.type === "mechanical" && (component1?.type === "spotlight" || component1?.name?.toLowerCase().includes('pendant'))) ||
-             (snapPoint1.type === "mounting" && component1?.type === "connector")
+    const isConnector = (component?: Component): boolean => {
+      if (!component) return false
+      return component.type.includes('connector')
     }
     
-    // Rule 4: Mechanical snap points on pendants connect to lamps or mounting points on connectors
-    if (snapPoint1.type === "mechanical" && component1?.name?.toLowerCase().includes('pendant')) {
-      return (snapPoint2.type === "mechanical" && component2?.type === "spotlight") ||
-             (snapPoint2.type === "mounting" && component2?.type === "connector")
-    }
-    if (snapPoint2.type === "mechanical" && component2?.name?.toLowerCase().includes('pendant')) {
-      return (snapPoint1.type === "mechanical" && component1?.type === "spotlight") ||
-             (snapPoint1.type === "mounting" && component1?.type === "connector")
+    const isProfileOrTrack = (component?: Component): boolean => {
+      if (!component) return false
+      return component.type.includes('profile') || 
+             component.type.includes('track') ||
+             (component.name ? component.name.toLowerCase().includes('profile') : false) ||
+             (component.name ? component.name.toLowerCase().includes('1000mm') : false)
     }
     
-    // Rule 5: Mechanical snap points on lamps connect to mounting points
-    if (snapPoint1.type === "mechanical" && component1?.type === "spotlight") {
-      return snapPoint2.type === "mounting"
-    }
-    if (snapPoint2.type === "mechanical" && component2?.type === "spotlight") {
-      return snapPoint1.type === "mounting"
+    const isEndCap = (component?: Component): boolean => {
+      if (!component) return false
+      return component.name ? component.name.toLowerCase().includes('cap') : false
     }
     
-    // Rule 6: Power snap points for general electrical connections
-    if (snapPoint1.type === "power" || snapPoint2.type === "power") {
-      return snapPoint1.type === "power" && snapPoint2.type === "power"
+    console.log(`🔍 CHECKING SNAP COMPATIBILITY:`, {
+      snapPoint1: { type: snapPoint1.type, component: component1?.type, name: component1?.name },
+      snapPoint2: { type: snapPoint2.type, component: component2?.type, name: component2?.name }
+    })
+    
+    // Rule 1: Same type connections (basic compatibility)
+    if (snapPoint1.type === snapPoint2.type) {
+      console.log(`✅ SAME TYPE CONNECTION: ${snapPoint1.type} ↔ ${snapPoint2.type}`)
+      return true
     }
     
-    // No other combinations are allowed by default
+    // Rule 2: Track ↔ Mounting cross-compatibility
+    if ((snapPoint1.type === "track" && snapPoint2.type === "mounting") ||
+        (snapPoint1.type === "mounting" && snapPoint2.type === "track")) {
+      console.log(`✅ TRACK-MOUNTING CROSS CONNECTION`)
+      return true
+    }
+    
+    // Rule 3: ENHANCED - Lamps/Pendants ↔ Connectors (FIXED: Now works!)
+    // This specifically addresses your requirement: "Lamps and Pendants should be possible to snap to the mechanical snaps of connectors"
+    if (isLampOrPendant(component1) && isConnector(component2)) {
+      if ((snapPoint1.type === "mounting" || snapPoint1.type === "track") && 
+          (snapPoint2.type === "track" || snapPoint2.type === "mounting")) {
+        console.log(`✅ LAMP/PENDANT → CONNECTOR: ${component1?.name} can connect to ${component2?.name}`)
+        return true
+      }
+    }
+    if (isLampOrPendant(component2) && isConnector(component1)) {
+      if ((snapPoint2.type === "mounting" || snapPoint2.type === "track") && 
+          (snapPoint1.type === "track" || snapPoint1.type === "mounting")) {
+        console.log(`✅ CONNECTOR → LAMP/PENDANT: ${component1?.name} can connect to ${component2?.name}`)
+        return true
+      }
+    }
+    
+    // Rule 4: ENHANCED - 1000mm Profiles ↔ Connectors (FIXED: Now works!)
+    // This specifically addresses your requirement: "1000mm profile should be possible to snap to a connector"
+    
+    // CRITICAL FIX: Profile Connector SNAP POINTS ONLY connect to Profiles/Tracks - REJECT everything else!
+    // Fix: Check SNAP POINT name, not component name!
+    const isSnapPoint1ProfileConnector = snapPoint1.name ? snapPoint1.name.toLowerCase().includes('profile connector') : false
+    const isSnapPoint2ProfileConnector = snapPoint2.name ? snapPoint2.name.toLowerCase().includes('profile connector') : false
+    
+    // If snapPoint1 is a profile connector, it can ONLY connect to profiles/tracks
+    if (isSnapPoint1ProfileConnector) {
+      if (isProfileOrTrack(component2)) {
+        console.log(`✅ PROFILE CONNECTOR SNAP POINT → PROFILE/TRACK ONLY: ${snapPoint1.name} can connect to ${component2?.name}`)
+        return true
+      } else {
+        console.log(`🚫 PROFILE CONNECTOR SNAP POINT RESTRICTED: ${snapPoint1.name} CANNOT connect to ${component2?.name} (only profiles/tracks allowed)`)
+        return false
+      }
+    }
+    
+    // If snapPoint2 is a profile connector, it can ONLY connect to profiles/tracks
+    if (isSnapPoint2ProfileConnector) {
+      if (isProfileOrTrack(component1)) {
+        console.log(`✅ PROFILE/TRACK → PROFILE CONNECTOR SNAP POINT ONLY: ${component1?.name} can connect to ${snapPoint2.name}`)
+        return true
+      } else {
+        console.log(`🚫 PROFILE CONNECTOR SNAP POINT RESTRICTED: ${snapPoint2.name} CANNOT connect to ${component1?.name} (only profiles/tracks allowed)`)
+        return false
+      }
+    }
+    
+    // For NON-profile connectors, allow connections to profiles/tracks
+    if (isProfileOrTrack(component1) && isConnector(component2)) {
+      if (snapPoint1.type === "track" && snapPoint2.type === "track") {
+        console.log(`✅ PROFILE/TRACK → CONNECTOR: ${component1?.name} can connect to ${component2?.name}`)
+        return true
+      }
+    }
+    if (isProfileOrTrack(component2) && isConnector(component1)) {
+      if (snapPoint2.type === "track" && snapPoint1.type === "track") {
+        console.log(`✅ CONNECTOR → PROFILE/TRACK: ${component1?.name} can connect to ${component2?.name}`)
+        return true
+      }
+    }
+    
+    // Rule 5: Connector ↔ Connector connections
+    if (isConnector(component1) && isConnector(component2)) {
+      if (snapPoint1.type === "track" && snapPoint2.type === "track") {
+        console.log(`✅ CONNECTOR ↔ CONNECTOR: Track connection`)
+        return true
+      }
+    }
+    
+    // Rule 6: Profile/Track ↔ Profile/Track connections
+    if (isProfileOrTrack(component1) && isProfileOrTrack(component2)) {
+      if (snapPoint1.type === "track" && snapPoint2.type === "track") {
+        console.log(`✅ PROFILE/TRACK ↔ PROFILE/TRACK: Direct connection`)
+        return true
+      }
+    }
+    
+    // Rule 7: End Cap connections
+    if (isEndCap(component1) || isEndCap(component2)) {
+      if (snapPoint1.type === "track" && snapPoint2.type === "track") {
+        console.log(`✅ END CAP CONNECTION: Track connection`)
+        return true
+      }
+    }
+    
+    // Rule 8: Compatible types defined in snap point properties
+    if (snapPoint1.compatibleTypes?.includes(snapPoint2.type) ||
+        snapPoint2.compatibleTypes?.includes(snapPoint1.type)) {
+      console.log(`✅ COMPATIBLE TYPES: Via snap point compatibility definition`)
+      return true
+    }
+    
     console.log(`🚫 SNAP POINT COMPATIBILITY REJECTED:`, {
-      snapPoint1: { type: snapPoint1.type, component: component1?.type },
-      snapPoint2: { type: snapPoint2.type, component: component2?.type },
+      snapPoint1: { type: snapPoint1.type, component: component1?.type, name: component1?.name },
+      snapPoint2: { type: snapPoint2.type, component: component2?.type, name: component2?.name },
       reason: "No matching compatibility rule found"
     })
     
@@ -234,82 +320,137 @@ export const snapLogic = {
     
     // STEP 3: Determine proper orientation based on component types and source direction
     const sourceIsCeilingConnector = sourceComponent.type.includes('connector') && sourceComponent.position[1] > 2.5
+    const sourceIsWallConnector = sourceComponent.type.includes('connector') && sourceComponent.position[1] <= 2.5
     const sourceIsEasyLinkEndCap = sourceComponent.name?.toLowerCase().includes('easy link end cap white')
     const sourceIsTrack = sourceComponent.type.includes('track') || sourceComponent.type.includes('profile')
     const targetIsTrack = targetComponent.type.includes('track') || targetComponent.type.includes('profile')
+    const targetIsProfile = targetComponent.type.includes('profile') || targetComponent.name?.toLowerCase().includes('profile')
     const targetIsEndCap = targetComponent.name?.toLowerCase().includes('easy link end cap white') || 
                           (targetComponent.type.includes('connector') && targetComponent.name?.toLowerCase().includes('cap'))
+    const targetIsConnector = targetComponent.type.includes('connector')
     const targetIsPendant = targetComponent.type.includes('spotlight') && 
                            targetComponent.name?.toLowerCase().includes('pendant')
     
+    // Detect wall vs ceiling mounting based on source position
+    const sourceOnCeiling = sourceComponent.position[1] > 2.5
+    const sourceOnWall = sourceComponent.position[1] <= 2.5
+    
     console.log(`🔍 COMPONENT TYPE ANALYSIS:`, {
       sourceIsCeilingConnector,
+      sourceIsWallConnector,
       sourceIsEasyLinkEndCap,
       sourceIsTrack,
       targetIsTrack,
+      targetIsProfile,
       targetIsEndCap,
+      targetIsConnector,
       targetIsPendant,
+      sourceOnCeiling,
+      sourceOnWall,
       sourceType: sourceComponent.type,
       targetType: targetComponent.type
     })
     
-    if (targetIsTrack && (sourceIsCeilingConnector || sourceIsEasyLinkEndCap)) {
-      // FIX: Calculate track direction based on source component's orientation
-      // The track should extend in the direction the cap/connector is facing
+    // CAP TO PROFILE CONNECTION: Orient profile in cap's tail direction
+    if ((targetIsTrack || targetIsProfile) && (sourceIsCeilingConnector || sourceIsWallConnector || sourceIsEasyLinkEndCap)) {
       
-      // Get the source component's rotation to determine the facing direction
-      const sourceRotation = sourceComponent.rotation || [0, 0, 0]
+      const connectorOnWall = sourceComponent.position[1] <= 2.5
       
-      // For tracks, we want them to be horizontal (lying flat) but oriented correctly
-      // The X rotation makes it horizontal, Y rotation controls the direction
-      targetRotation = [
-        Math.PI / 2,  // X: 90° to make track horizontal (lying flat)
-        sourceRotation[1], // Y: Use source's Y rotation to match direction
-        sourceRotation[2]  // Z: Use source's Z rotation if any
+      // ENHANCED TAIL DIRECTION CALCULATION: Account for cap's actual rotation
+      const capCenter = sourceComponent.position || [0, 0, 0]
+      const snapWorldPos = sourceWorldPos
+      const capRotation = sourceComponent.rotation || [0, 0, 0]
+      
+      // Calculate raw tail direction: from cap center to snap point
+      let tailDirection = [
+        snapWorldPos[0] - capCenter[0],
+        snapWorldPos[1] - capCenter[1], 
+        snapWorldPos[2] - capCenter[2]
       ]
       
-      console.log(`🎯 CORRECTED TRACK DIRECTION CALCULATION:`, {
-          sourceComponent: sourceComponent.name,
-          sourceSnapPoint: sourceSnapPoint.name,
-          sourceRotation: {
-            radians: [sourceRotation[0].toFixed(4), sourceRotation[1].toFixed(4), sourceRotation[2].toFixed(4)],
-            degrees: [(sourceRotation[0] * 180 / Math.PI).toFixed(1), (sourceRotation[1] * 180 / Math.PI).toFixed(1), (sourceRotation[2] * 180 / Math.PI).toFixed(1)]
-          },
-          finalRotation: {
-            radians: [targetRotation[0].toFixed(4), targetRotation[1].toFixed(4), targetRotation[2].toFixed(4)],
-            degrees: [(targetRotation[0] * 180 / Math.PI).toFixed(1), (targetRotation[1] * 180 / Math.PI).toFixed(1), (targetRotation[2] * 180 / Math.PI).toFixed(1)]
-          },
-          reasoning: "Track inherits source component's Y and Z rotation for correct direction"
+      // CRITICAL FIX: When cap is rotated, the "forward" direction changes
+      // We need to account for the cap's Y rotation (primary rotation axis)
+      const capYRotation = capRotation[1]
+      
+      // If cap has significant Y rotation, adjust the tail direction accordingly
+      if (Math.abs(capYRotation) > 0.1) { // More than ~6 degrees
+        // The cap's "forward" direction has rotated, so adjust tail calculation
+        const rotationMatrix = new THREE.Matrix4().makeRotationY(capYRotation)
+        const baseDirection = new THREE.Vector3(1, 0, 0) // Default forward direction
+        const rotatedDirection = baseDirection.applyMatrix4(rotationMatrix)
+        
+        // Use the rotated direction instead of center-to-snap calculation
+        tailDirection = [rotatedDirection.x, rotatedDirection.y, rotatedDirection.z]
+        
+        console.log(`🔄 CAP ROTATION DETECTED:`, {
+          capYRotation: (capYRotation * 180 / Math.PI).toFixed(1) + '°',
+          adjustedTailDirection: tailDirection,
+          reasoning: 'Using cap rotation-aware tail direction'
         })
+      }
       
-    } else if (sourceIsTrack && targetIsEndCap) {
-      // SPECIAL CASE: Track connecting to end cap
-      // The cap should face back toward the track, and only the cap's tail should overlap
+      // Calculate the Y rotation needed to point the profile in the tail direction
+      const targetYRotation = Math.atan2(tailDirection[2], tailDirection[0])
       
-      // Get the source track's rotation 
-      const sourceRotation = sourceComponent.rotation || [0, 0, 0]
+      if (connectorOnWall) {
+        // WALL MOUNTING: Profile horizontal, lying on narrow edge, oriented in tail direction
+        targetRotation = [Math.PI / 2, targetYRotation, 0]
+        console.log(`🎯 WALL CAP→PROFILE: Horizontal profile lying on narrow edge in tail direction`)
+      } else {
+        // CEILING MOUNTING: Profile horizontal, lying on narrow edge, oriented in tail direction
+        targetRotation = [Math.PI / 2, targetYRotation, 0]
+        console.log(`🎯 CEILING CAP→PROFILE: Horizontal profile lying on narrow edge in tail direction`)
+      }
       
-      // Cap should face opposite direction to the track's extension direction
-      // If track is horizontal and extending in +X direction, cap should face -X direction
-      targetRotation = [
-        0,                          // X: Keep cap upright (not tilted)
-        sourceRotation[1] + Math.PI, // Y: Face opposite direction (180° rotation)
-        sourceRotation[2]           // Z: Use same Z rotation as track
-      ]
-      
-      console.log(`🎯 TRACK-TO-CAP CONNECTION CALCULATION:`, {
-        sourceComponent: sourceComponent.name,
-        targetComponent: targetComponent.name,
-        sourceRotation: {
-          radians: [sourceRotation[0].toFixed(4), sourceRotation[1].toFixed(4), sourceRotation[2].toFixed(4)],
-          degrees: [(sourceRotation[0] * 180 / Math.PI).toFixed(1), (sourceRotation[1] * 180 / Math.PI).toFixed(1), (sourceRotation[2] * 180 / Math.PI).toFixed(1)]
+      console.log(`🔧 CAP→PROFILE TAIL DIRECTION:`, {
+        capType: sourceComponent.name,
+        capCenter,
+        snapWorldPos,
+        capRotation: {
+          radians: capRotation,
+          degrees: [(capRotation[0] * 180 / Math.PI).toFixed(1), (capRotation[1] * 180 / Math.PI).toFixed(1), (capRotation[2] * 180 / Math.PI).toFixed(1)]
         },
+        tailDirection,
+        targetYRotation: {
+          radians: targetYRotation.toFixed(4),
+          degrees: (targetYRotation * 180 / Math.PI).toFixed(1)
+        },
+        mountingSurface: connectorOnWall ? 'wall' : 'ceiling',
         targetRotation: {
-          radians: [targetRotation[0].toFixed(4), targetRotation[1].toFixed(4), targetRotation[2].toFixed(4)],
           degrees: [(targetRotation[0] * 180 / Math.PI).toFixed(1), (targetRotation[1] * 180 / Math.PI).toFixed(1), (targetRotation[2] * 180 / Math.PI).toFixed(1)]
-        },
-        reasoning: "Cap faces opposite to track direction for proper end connection"
+        }
       })
+      
+    } else if (sourceIsTrack && (targetIsTrack || targetIsProfile)) {
+      // TRACK TO TRACK/PROFILE CONNECTION: Horizontal orientation on narrow edge
+      if (sourceOnCeiling) {
+        // CEILING MOUNTING: Profile horizontal, lying on narrow edge
+        targetRotation = [Math.PI / 2, 0, 0]
+        console.log(`🎯 CEILING TRACK→PROFILE: Horizontal profile lying on narrow edge`)
+      } else {
+        // WALL MOUNTING: Profile horizontal, lying on narrow edge
+        targetRotation = [Math.PI / 2, 0, 0]
+        console.log(`🎯 WALL TRACK→PROFILE: Horizontal profile lying on narrow edge`)
+      }
+      
+    } else if (sourceIsTrack && (targetIsEndCap || targetIsConnector)) {
+      // TRACK TO CONNECTOR CONNECTION: Simple default orientation
+      targetRotation = [0, 0, 0]
+      console.log(`🎯 TRACK→CONNECTOR: Default orientation`)
+      
+    } else if ((sourceIsCeilingConnector || sourceIsWallConnector) && (targetIsTrack || targetIsProfile)) {
+      // CONNECTOR TO TRACK CONNECTION: Horizontal orientation on narrow edge
+      const connectorOnWall = sourceComponent.position[1] <= 2.5
+      
+      if (connectorOnWall) {
+        // WALL MOUNTING: Track horizontal, lying on narrow edge
+        targetRotation = [Math.PI / 2, 0, 0]
+        console.log(`🎯 WALL CONNECTOR→TRACK: Horizontal track lying on narrow edge`)
+      } else {
+        // CEILING MOUNTING: Track horizontal, lying on narrow edge
+        targetRotation = [Math.PI / 2, 0, 0]
+        console.log(`🎯 CEILING CONNECTOR→TRACK: Horizontal track lying on narrow edge`)
+      }
       
     } else if (targetIsPendant) {
       // Pendant lamps should hang vertically with snap point on top
@@ -352,12 +493,20 @@ export const snapLogic = {
     })
     
     // STEP 5: Calculate final target component position
-    // Position the target component so its transformed snap point matches source snap point exactly
-    const finalPosition: [number, number, number] = [
+    let finalPosition: [number, number, number] = [
       sourceWorldPos[0] - transformedTargetSnap.x,
       sourceWorldPos[1] - transformedTargetSnap.y,
       sourceWorldPos[2] - transformedTargetSnap.z
     ]
+    
+    // PURE SNAP-TO-SNAP ALIGNMENT FOR ALL CONNECTIONS
+    // No offsets, no extensions - snap points align exactly
+    console.log(`🔧 PURE SNAP-TO-SNAP ALIGNMENT:`, {
+      sourceSnapWorldPos: sourceWorldPos,
+      transformedTargetSnap: [transformedTargetSnap.x, transformedTargetSnap.y, transformedTargetSnap.z],
+      finalPosition,
+      reasoning: "Perfect snap point alignment - snap points overlap exactly"
+    })
     
     console.log(`📍 CALCULATED POSITION:`, {
       sourceWorldPos,

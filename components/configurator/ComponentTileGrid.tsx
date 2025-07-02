@@ -53,7 +53,7 @@ export const ComponentTileGrid: React.FC<ComponentTileGridProps> = ({
           <Card
             key={component.id}
             className={`relative overflow-hidden min-w-[180px] max-w-[220px] h-56 flex flex-col cursor-pointer hover:shadow-lg transition-all duration-200 ${
-              isTrack ? 'ring-2 ring-blue-200 hover:ring-blue-400' : 'hover:bg-gray-50'
+              isTrack ? 'ring-2 ring-gray-200 hover:ring-gray-400' : 'hover:bg-gray-50'
             } ${tileClassName}`}
             onClick={() => onSelect(component)}
           >
@@ -66,7 +66,7 @@ export const ComponentTileGrid: React.FC<ComponentTileGridProps> = ({
                 />
               </div>
               <div className={`text-sm font-medium break-words w-full line-clamp-2 min-h-[2.5rem] ${
-                isTrack ? 'text-blue-700' : ''
+                isTrack ? 'text-gray-900' : ''
               }`}>
                 {component.name}
               </div>
@@ -81,7 +81,7 @@ export const ComponentTileGrid: React.FC<ComponentTileGridProps> = ({
                     variant={isTrack ? "default" : "secondary"}
                     className={`inline-flex items-center gap-1 w-full max-w-[120px] justify-center transition-colors ${
                       isTrack 
-                        ? 'bg-blue-600 hover:bg-blue-700 text-white font-medium' 
+                        ? 'bg-gray-900 hover:bg-gray-800 text-white font-medium' 
                         : 'hover:bg-gray-200'
                     }`}
                     onClick={(e) => {

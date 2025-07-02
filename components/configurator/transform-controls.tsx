@@ -273,15 +273,15 @@ export function TransformControls({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-2 w-48 max-w-[12rem]">
       {/* Component Info */}
       <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm">Selected Component</CardTitle>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-xs">Selected Component</CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="text-sm">
-            <p className="font-medium">{selectedComponent?.name || 'Unknown'}</p>
+        <CardContent className="p-3">
+          <div className="text-xs">
+            <p className="font-medium truncate">{selectedComponent?.name || 'Unknown'}</p>
             <p className="text-gray-500">{selectedComponent?.type || 'Unknown'}</p>
           </div>
         </CardContent>
@@ -290,16 +290,16 @@ export function TransformControls({
       {/* Snap Points Selector */}
       {selectedComponent?.snapPoints && selectedComponent.snapPoints.length > 0 && (
         <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="flex items-center gap-2 text-sm">
-              <Target className="h-4 w-4" />
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-1 text-xs">
+              <Target className="h-3 w-3" />
               Snap Points
               <Badge variant="outline" className="text-xs">
                 {selectedComponent.snapPoints.length}
               </Badge>
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2">
+          <CardContent className="space-y-1 p-3">
             <p className="text-xs text-gray-600 mb-3">
               Click a snap point to select it for connecting other components
             </p>
@@ -315,7 +315,7 @@ export function TransformControls({
                   variant={isSelected ? "default" : "outline"}
                   size="sm"
                   className={`w-full justify-start text-left h-auto p-3 ${
-                    isSelected ? 'bg-blue-600 text-white' : ''
+                    isSelected ? 'bg-gray-900 text-white' : ''
                   } ${isConnected ? 'opacity-50' : ''}`}
                   onClick={() => handleSnapPointSelect(snapPoint.id)}
                   disabled={isConnected}
@@ -343,8 +343,8 @@ export function TransformControls({
             })}
             
             {state.selectedSnapPoint?.componentId === selectedComponentId && (
-              <div className="mt-3 p-2 bg-blue-50 rounded-lg">
-                <p className="text-xs text-blue-800 font-medium">
+              <div className="mt-3 p-2 bg-gray-50 rounded-lg">
+                <p className="text-xs text-gray-800 font-medium">
                   Snap point selected! Now click a component from the sidebar to connect it.
                 </p>
                 <Button
@@ -363,10 +363,10 @@ export function TransformControls({
 
       {/* Quick Transform Actions */}
       <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm">Quick Actions</CardTitle>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-xs">Quick Actions</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="p-3">
           <div className="grid grid-cols-2 gap-2">
             <Button
               variant="outline"
@@ -470,10 +470,10 @@ export function TransformControls({
 
       {/* Manual Position Controls */}
       <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm">Position</CardTitle>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-xs">Position</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent className="space-y-2 p-3">
           <div className="grid grid-cols-3 gap-2">
             <div>
               <Label htmlFor="pos-x" className="text-xs">X</Label>
@@ -491,7 +491,7 @@ export function TransformControls({
                   setPosition(newPos)
                   onTransform(selectedComponentId, { position: newPos })
                 }}
-                className="h-8 text-xs"
+                className="h-8 text-xs font-semibold text-gray-900 text-center"
               />
             </div>
             <div>
@@ -510,7 +510,7 @@ export function TransformControls({
                   setPosition(newPos)
                   onTransform(selectedComponentId, { position: newPos })
                 }}
-                className="h-8 text-xs"
+                className="h-8 text-xs font-semibold text-gray-900 text-center"
               />
             </div>
             <div>
@@ -529,7 +529,7 @@ export function TransformControls({
                   setPosition(newPos)
                   onTransform(selectedComponentId, { position: newPos })
                 }}
-                className="h-8 text-xs"
+                className="h-8 text-xs font-semibold text-gray-900 text-center"
               />
             </div>
           </div>
@@ -538,10 +538,10 @@ export function TransformControls({
 
       {/* Manual Rotation Controls */}
       <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm">Rotation (degrees)</CardTitle>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-xs">Rotation (degrees)</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent className="space-y-2 p-3">
           <div className="grid grid-cols-3 gap-2">
             <div>
               <Label htmlFor="rot-x" className="text-xs">X</Label>
@@ -560,7 +560,7 @@ export function TransformControls({
                   setRotation(newRot)
                   onTransform(selectedComponentId, { rotation: newRot })
                 }}
-                className="h-8 text-xs"
+                className="h-8 text-xs font-semibold text-gray-900 text-center"
               />
             </div>
             <div>
@@ -580,7 +580,7 @@ export function TransformControls({
                   setRotation(newRot)
                   onTransform(selectedComponentId, { rotation: newRot })
                 }}
-                className="h-8 text-xs"
+                className="h-8 text-xs font-semibold text-gray-900 text-center"
               />
             </div>
             <div>
@@ -600,7 +600,7 @@ export function TransformControls({
                   setRotation(newRot)
                   onTransform(selectedComponentId, { rotation: newRot })
                 }}
-                className="h-8 text-xs"
+                className="h-8 text-xs font-semibold text-gray-900 text-center"
               />
             </div>
           </div>
@@ -609,10 +609,10 @@ export function TransformControls({
 
       {/* Scale Controls */}
       <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm">Scale</CardTitle>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-xs">Scale</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-3">
+        <CardContent className="space-y-2 p-3">
           <div className="grid grid-cols-3 gap-2">
             <div>
               <Label htmlFor="scale-x" className="text-xs">X</Label>
@@ -630,7 +630,7 @@ export function TransformControls({
                   setScale(newScale)
                   onTransform(selectedComponentId, { scale: newScale })
                 }}
-                className="h-8 text-xs"
+                className="h-8 text-xs font-semibold text-gray-900 text-center"
               />
             </div>
             <div>
@@ -649,7 +649,7 @@ export function TransformControls({
                   setScale(newScale)
                   onTransform(selectedComponentId, { scale: newScale })
                 }}
-                className="h-8 text-xs"
+                className="h-8 text-xs font-semibold text-gray-900 text-center"
               />
             </div>
             <div>
@@ -668,7 +668,7 @@ export function TransformControls({
                   setScale(newScale)
                   onTransform(selectedComponentId, { scale: newScale })
                 }}
-                className="h-8 text-xs"
+                className="h-8 text-xs font-semibold text-gray-900 text-center"
               />
             </div>
           </div>

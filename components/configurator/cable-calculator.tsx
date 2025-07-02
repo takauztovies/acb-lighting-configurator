@@ -57,12 +57,12 @@ export function CableCalculator() {
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium">Socket Position:</span>
             {state.socketPosition ? (
-              <Badge variant="outline" className="bg-green-50 text-green-700">
+              <Badge variant="outline" className="bg-gray-50 text-gray-700">
                 Set ({state.socketPosition.x.toFixed(1)}, {state.socketPosition.y.toFixed(1)},{" "}
                 {state.socketPosition.z.toFixed(1)})
               </Badge>
             ) : (
-              <Badge variant="outline" className="bg-orange-50 text-orange-700">
+              <Badge variant="outline" className="bg-gray-50 text-gray-700">
                 Not Set
               </Badge>
             )}
@@ -94,10 +94,10 @@ export function CableCalculator() {
             ))}
 
             {/* Total Cable Cost */}
-            <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg">
               <div className="flex items-center justify-between">
-                <span className="font-medium text-blue-900">Total Cable Cost:</span>
-                <span className="font-bold text-blue-900">€{totalCableCost.toFixed(2)}</span>
+                <span className="font-medium text-gray-900">Total Cable Cost:</span>
+                <span className="font-bold text-gray-900">€{totalCableCost.toFixed(2)}</span>
               </div>
             </div>
           </div>
@@ -120,7 +120,7 @@ export function CableCalculator() {
         </Button>
 
         {/* Tips */}
-        <div className="text-xs text-gray-500 bg-yellow-50 border border-yellow-200 p-3 rounded-lg">
+        <div className="text-xs text-gray-500 bg-gray-50 border border-gray-200 p-3 rounded-lg">
           <strong>💡 Tips:</strong>
           <ul className="mt-2 space-y-1 list-disc list-inside">
             <li>Cable length includes 10% safety margin</li>

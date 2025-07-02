@@ -40,11 +40,11 @@ export function EnhancedSocketSelector({
   const [positioningMode, setPositioningMode] = useState<"preset" | "custom">("preset")
 
   const walls = [
-    { id: "back", name: "Back Wall", icon: "⬅️", recommended: true, color: "bg-blue-50 border-blue-200" },
-    { id: "left", name: "Left Wall", icon: "↖️", color: "bg-green-50 border-green-200" },
-    { id: "right", name: "Right Wall", icon: "↗️", color: "bg-purple-50 border-purple-200" },
-    { id: "front", name: "Front Wall", icon: "➡️", color: "bg-orange-50 border-orange-200" },
-    { id: "ceiling", name: "Ceiling", icon: "⬆️", color: "bg-yellow-50 border-yellow-200" },
+      { id: "back", name: "Back Wall", icon: "⬅️", recommended: true, color: "bg-gray-50 border-gray-200" },
+  { id: "left", name: "Left Wall", icon: "↖️", color: "bg-gray-50 border-gray-200" },
+  { id: "right", name: "Right Wall", icon: "↗️", color: "bg-gray-50 border-gray-200" },
+  { id: "front", name: "Front Wall", icon: "➡️", color: "bg-gray-50 border-gray-200" },
+  { id: "ceiling", name: "Ceiling", icon: "⬆️", color: "bg-gray-50 border-gray-200" },
   ]
 
   // Get wall dimensions based on selected wall
@@ -219,7 +219,7 @@ export function EnhancedSocketSelector({
   return (
     <div className="space-y-6">
       <div className="text-center mb-6">
-        <Zap className="h-12 w-12 mx-auto mb-4 text-yellow-600" />
+        <Zap className="h-12 w-12 mx-auto mb-4 text-gray-900" />
         <h3 className="text-xl font-semibold mb-2">Position Your Power Socket</h3>
         <p className="text-gray-600">Choose the wall and exact position for your electrical socket.</p>
       </div>
@@ -233,10 +233,10 @@ export function EnhancedSocketSelector({
               key={wall.id}
               variant={selectedWall === wall.id ? "default" : "outline"}
               onClick={() => setSelectedWall(wall.id)}
-              className={`h-auto p-3 text-center ${selectedWall === wall.id ? "bg-blue-600 text-white" : ""}`}
+              className={`h-auto p-3 text-center ${selectedWall === wall.id ? "bg-gray-900 text-white" : ""}`}
             >
               <div>
-                {wall.recommended && <Badge className="mb-1 bg-green-100 text-green-800 text-xs">Best</Badge>}
+                {wall.recommended && <Badge className="mb-1 bg-gray-100 text-gray-800 text-xs">Best</Badge>}
                 <div className="text-lg mb-1">{wall.icon}</div>
                 <div className="font-medium text-sm">{wall.name}</div>
               </div>
@@ -364,7 +364,7 @@ export function EnhancedSocketSelector({
                         : `${(1 - customPosition.y / wallDims.height) * 100}%`,
                   }}
                 >
-                  <Zap className="h-3 w-3 text-yellow-700 absolute top-0.5 left-0.5" />
+                  <Zap className="h-3 w-3 text-white absolute top-0.5 left-0.5" />
                 </div>
               )}
 
@@ -429,21 +429,21 @@ export function EnhancedSocketSelector({
             {selectedPosition && selectedPosition.wall === selectedWall && (
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
                 <div className="text-center p-2 bg-white rounded border">
-                  <div className="text-blue-600 font-medium">From Left</div>
+                  <div className="text-gray-800 font-medium">From Left</div>
                   <div className="text-gray-900">{selectedPosition.distanceFromLeft?.toFixed(2)}m</div>
                 </div>
                 <div className="text-center p-2 bg-white rounded border">
-                  <div className="text-blue-600 font-medium">From Right</div>
+                  <div className="text-gray-800 font-medium">From Right</div>
                   <div className="text-gray-900">{selectedPosition.distanceFromRight?.toFixed(2)}m</div>
                 </div>
                 <div className="text-center p-2 bg-white rounded border">
-                  <div className="text-green-600 font-medium">
+                  <div className="text-gray-800 font-medium">
                     {selectedWall === "ceiling" ? "From Back" : "From Bottom"}
                   </div>
                   <div className="text-gray-900">{selectedPosition.distanceFromBottom?.toFixed(2)}m</div>
                 </div>
                 <div className="text-center p-2 bg-white rounded border">
-                  <div className="text-green-600 font-medium">
+                  <div className="text-gray-800 font-medium">
                     {selectedWall === "ceiling" ? "From Front" : "From Top"}
                   </div>
                   <div className="text-gray-900">{selectedPosition.distanceFromTop?.toFixed(2)}m</div>
@@ -496,7 +496,7 @@ export function EnhancedSocketSelector({
                     top: `${((selectedPosition.z + roomDimensions.length / 2) / roomDimensions.length) * 100}%`,
                   }}
                 >
-                  <Zap className="h-2 w-2 text-yellow-700 absolute top-0.5 left-0.5" />
+                  <Zap className="h-2 w-2 text-white absolute top-0.5 left-0.5" />
                 </div>
               )}
 

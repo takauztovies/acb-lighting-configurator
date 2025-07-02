@@ -17,15 +17,36 @@ import {
   ArrowLeft, 
   ArrowRight,
   Home,
-  Camera
+  Camera,
+  Grid3X3,
+  CircleDot,
+  Trash2
 } from "lucide-react"
 
 interface EnhancedCameraControlsProps {
   orbitControlsRef: React.RefObject<any>
+  onToggleGrid?: () => void
+  onToggleSnapPoints?: () => void
+  onDeleteSelected?: () => void
+  gridVisible?: boolean
+  showLabels?: boolean
+  selectedComponentsCount?: number
 }
 
-export function EnhancedCameraControls({ orbitControlsRef }: EnhancedCameraControlsProps) {
+export function EnhancedCameraControls({ 
+  orbitControlsRef, 
+  onToggleGrid, 
+  onToggleSnapPoints, 
+  onDeleteSelected, 
+  gridVisible = false, 
+  showLabels = false, 
+  selectedComponentsCount = 0 
+}: EnhancedCameraControlsProps) {
   const [isVisible, setIsVisible] = useState(true)
+  const [position, setPosition] = useState({ x: 900, y: 80 }) // Start aligned with right-side buttons
+  const [isDragging, setIsDragging] = useState(false)
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 })
+  const cardRef = useRef<HTMLDivElement>(null)
 
   // Camera movement functions using direct camera manipulation
   const panLeft = () => {
@@ -162,6 +183,46 @@ export function EnhancedCameraControls({ orbitControlsRef }: EnhancedCameraContr
     }
   }
 
+  // Drag functionality
+  const handleMouseDown = (e: React.MouseEvent) => {
+    // Allow dragging when clicking on header area (not on buttons)
+    const isButton = (e.target as HTMLElement).closest('button')
+    if (cardRef.current && !isButton) {
+      e.preventDefault()
+      const rect = cardRef.current.getBoundingClientRect()
+      setDragOffset({
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top
+      })
+      setIsDragging(true)
+    }
+  }
+
+  const handleMouseMove = (e: MouseEvent) => {
+    if (isDragging) {
+      setPosition({
+        x: e.clientX - dragOffset.x,
+        y: e.clientY - dragOffset.y
+      })
+    }
+  }
+
+  const handleMouseUp = () => {
+    setIsDragging(false)
+  }
+
+  // Mouse event listeners for dragging
+  useEffect(() => {
+    if (isDragging) {
+      document.addEventListener('mousemove', handleMouseMove)
+      document.addEventListener('mouseup', handleMouseUp)
+      return () => {
+        document.removeEventListener('mousemove', handleMouseMove)
+        document.removeEventListener('mouseup', handleMouseUp)
+      }
+    }
+  }, [isDragging, dragOffset])
+
   // Keyboard controls
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
@@ -207,7 +268,10 @@ export function EnhancedCameraControls({ orbitControlsRef }: EnhancedCameraContr
 
   if (!isVisible) {
     return (
-      <div className="absolute top-4 right-4 z-10">
+      <div 
+        className="fixed z-30"
+        style={{ left: `${position.x}px`, top: `${position.y}px` }}
+      >
         <Button size="sm" variant="outline" onClick={() => setIsVisible(true)} className="bg-white/90 backdrop-blur-sm">
           <Camera className="w-4 h-4" />
         </Button>
@@ -216,84 +280,109 @@ export function EnhancedCameraControls({ orbitControlsRef }: EnhancedCameraContr
   }
 
   return (
-    <div className="absolute top-4 right-4 z-10">
-      <Card className="bg-white/90 backdrop-blur-sm shadow-lg">
-        <CardHeader className="p-3 pb-2">
-          <CardTitle className="text-sm flex items-center justify-between">
-            <span>Camera Controls</span>
+    <div 
+      className="fixed z-30"
+      style={{ left: `${position.x}px`, top: `${position.y}px` }}
+    >
+      <div 
+        ref={cardRef}
+        className={`bg-white/95 backdrop-blur-sm shadow-lg rounded-lg border select-none ${isDragging ? 'cursor-grabbing' : 'cursor-grab'} flex items-center gap-1 px-3 py-2`}
+        onMouseDown={handleMouseDown}
+      >
+        {/* Camera Icon & Close */}
+        <Camera className="w-4 h-4 text-gray-600" />
+        
+        {/* Movement Controls */}
+        <div className="flex items-center gap-1 border-r border-gray-200 pr-2">
+          <Button size="sm" variant="ghost" onClick={panUp} title="Move Up (W)" className="h-7 w-7 p-0">
+            <ArrowUp className="w-3 h-3" />
+          </Button>
+          <Button size="sm" variant="ghost" onClick={panDown} title="Move Down (S)" className="h-7 w-7 p-0">
+            <ArrowDown className="w-3 h-3" />
+          </Button>
+          <Button size="sm" variant="ghost" onClick={panLeft} title="Move Left (A)" className="h-7 w-7 p-0">
+            <ArrowLeft className="w-3 h-3" />
+          </Button>
+          <Button size="sm" variant="ghost" onClick={panRight} title="Move Right (D)" className="h-7 w-7 p-0">
+            <ArrowRight className="w-3 h-3" />
+          </Button>
+        </div>
+
+        {/* Rotation Controls */}
+        <div className="flex items-center gap-1 border-r border-gray-200 pr-2">
+          <Button size="sm" variant="ghost" onClick={rotateLeft} title="Rotate Left (Q)" className="h-7 w-7 p-0">
+            <RotateCcw className="w-3 h-3" />
+          </Button>
+          <Button size="sm" variant="ghost" onClick={rotateRight} title="Rotate Right (E)" className="h-7 w-7 p-0">
+            <RotateCw className="w-3 h-3" />
+          </Button>
+        </div>
+
+        {/* Zoom Controls */}
+        <div className="flex items-center gap-1 border-r border-gray-200 pr-2">
+          <Button size="sm" variant="ghost" onClick={zoomIn} title="Zoom In (+)" className="h-7 w-7 p-0">
+            <ZoomIn className="w-3 h-3" />
+          </Button>
+          <Button size="sm" variant="ghost" onClick={zoomOut} title="Zoom Out (-)" className="h-7 w-7 p-0">
+            <ZoomOut className="w-3 h-3" />
+          </Button>
+        </div>
+
+        {/* Reset */}
+        <div className="flex items-center gap-1 border-r border-gray-200 pr-2">
+          <Button size="sm" variant="ghost" onClick={resetCamera} title="Reset View (R)" className="h-7 w-7 p-0">
+            <Home className="w-3 h-3" />
+          </Button>
+        </div>
+
+        {/* Grid & Snap Points Controls */}
+        <div className="flex items-center gap-1 border-r border-gray-200 pr-2">
+          <Button 
+            size="sm" 
+            variant={gridVisible ? "default" : "ghost"} 
+            onClick={onToggleGrid} 
+            title="Toggle Grid" 
+            className="h-7 w-7 p-0"
+          >
+            <Grid3X3 className="w-3 h-3" />
+          </Button>
+          <Button 
+            size="sm" 
+            variant={showLabels ? "default" : "ghost"} 
+            onClick={onToggleSnapPoints} 
+            title="Toggle Snap Points" 
+            className="h-7 w-7 p-0"
+          >
+            <CircleDot className="w-3 h-3" />
+          </Button>
+        </div>
+
+        {/* Delete Selected Components - Only show when components are selected */}
+        {selectedComponentsCount > 0 && (
+          <div className="flex items-center gap-1 border-r border-gray-200 pr-2">
             <Button 
               size="sm" 
               variant="ghost" 
-              onClick={() => setIsVisible(false)}
-              className="h-6 w-6 p-0"
+              onClick={onDeleteSelected} 
+              title={`Delete ${selectedComponentsCount} Selected Component${selectedComponentsCount > 1 ? 's' : ''}`} 
+              className="h-7 w-7 p-0 hover:bg-gray-100 hover:text-gray-900"
             >
-              ×
+              <Trash2 className="w-3 h-3" />
             </Button>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-3 pt-0 space-y-3">
-          {/* Pan Controls */}
-          <div>
-            <div className="text-xs font-medium mb-2 text-gray-700">Movement</div>
-            <div className="grid grid-cols-3 gap-1">
-              <div></div>
-              <Button size="sm" variant="outline" onClick={panUp} title="Move Up (W)">
-                <ArrowUp className="w-3 h-3" />
-              </Button>
-              <div></div>
-              
-              <Button size="sm" variant="outline" onClick={panLeft} title="Move Left (A)">
-                <ArrowLeft className="w-3 h-3" />
-              </Button>
-              <Button size="sm" variant="outline" onClick={resetCamera} title="Reset View (R)">
-                <Home className="w-3 h-3" />
-              </Button>
-              <Button size="sm" variant="outline" onClick={panRight} title="Move Right (D)">
-                <ArrowRight className="w-3 h-3" />
-              </Button>
-              
-              <div></div>
-              <Button size="sm" variant="outline" onClick={panDown} title="Move Down (S)">
-                <ArrowDown className="w-3 h-3" />
-              </Button>
-              <div></div>
-            </div>
           </div>
+        )}
 
-          {/* Rotation Controls */}
-          <div>
-            <div className="text-xs font-medium mb-2 text-gray-700">Rotation</div>
-            <div className="grid grid-cols-2 gap-2">
-              <Button size="sm" variant="outline" onClick={rotateLeft} title="Rotate Left (Q)">
-                <RotateCcw className="w-3 h-3" />
-              </Button>
-              <Button size="sm" variant="outline" onClick={rotateRight} title="Rotate Right (E)">
-                <RotateCw className="w-3 h-3" />
-              </Button>
-            </div>
-          </div>
-
-          {/* Zoom Controls */}
-          <div>
-            <div className="text-xs font-medium mb-2 text-gray-700">Zoom</div>
-            <div className="grid grid-cols-2 gap-2">
-              <Button size="sm" variant="outline" onClick={zoomIn} title="Zoom In (+)">
-                <ZoomIn className="w-3 h-3" />
-              </Button>
-              <Button size="sm" variant="outline" onClick={zoomOut} title="Zoom Out (-)">
-                <ZoomOut className="w-3 h-3" />
-              </Button>
-            </div>
-          </div>
-
-          {/* Instructions */}
-          <div className="text-xs text-gray-600 pt-2 border-t">
-            <div className="font-medium mb-1">Keyboard:</div>
-            <div>WASD: Move • QE: Rotate</div>
-            <div>+/- : Zoom • R: Reset</div>
-          </div>
-        </CardContent>
-      </Card>
+        {/* Close Button */}
+        <Button 
+          size="sm" 
+          variant="ghost" 
+          onClick={() => setIsVisible(false)}
+          className="h-7 w-7 p-0 hover:bg-gray-200"
+          title="Hide Camera Controls"
+        >
+          ×
+        </Button>
+      </div>
     </div>
   )
 } 

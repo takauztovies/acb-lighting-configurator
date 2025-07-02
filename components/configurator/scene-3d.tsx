@@ -8,7 +8,7 @@ import { InteractiveComponent3D } from "./interactive-component-3d"
 import { GridHelper } from "./grid-helper"
 import { SceneBackground3D } from "./scene-background-3d"
 import { RoomEnvironment } from "./room-environment"
-import { EnhancedCameraControls } from "./enhanced-camera-controls"
+
 import { useConfigurator } from "./configurator-context"
 import { boundarySystem } from "@/lib/boundary-system"
 
@@ -313,8 +313,7 @@ export function Scene3D({
         </Suspense>
       </Canvas>
       
-      {/* Enhanced Camera Controls */}
-      <EnhancedCameraControls orbitControlsRef={orbitControlsRef} />
+
     </div>
   )
 }

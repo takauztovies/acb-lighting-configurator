@@ -755,13 +755,21 @@ export function VisualSnapPointEditor({ component, onSnapPointsUpdated, onClose 
       }
       // Create a new array with the updated snap point
       const newSnapPoints = cleanSnapPoints.map((sp) => (sp.id === selectedSnapPointId ? updatedSnapPoint : sp))
-      // Create updated component
+      // Create updated component - EDITING EXISTING, NOT CREATING NEW
       const updatedComponent = {
         ...safeComponent,
         snapPoints: newSnapPoints,
         updatedAt: new Date(),
       }
-      // Save to database
+      
+      console.log(`🔧 EDITING EXISTING COMPONENT:`, {
+        componentId: updatedComponent.id,
+        componentName: updatedComponent.name,
+        snapPointsCount: newSnapPoints.length,
+        action: 'UPDATE_SNAP_POINTS'
+      })
+      
+      // Save to database - updates existing component
       if (typeof db.saveComponent === "function") {
         db.saveComponent(updatedComponent)
       }
@@ -770,13 +778,13 @@ export function VisualSnapPointEditor({ component, onSnapPointsUpdated, onClose 
       setSelectedSnapPointId(null)
       setEditingSnapPoint(null)
       setFormData({})
-      setSaveStatus("Snap point saved successfully!")
-      // Notify parent
+      setSaveStatus(`✅ Snap points updated for "${safeComponent.name}" successfully! Component edited, not duplicated.`)
+      // Notify parent that existing component was updated
       if (typeof onSnapPointsUpdated === "function") {
         onSnapPointsUpdated(updatedComponent)
       }
       // Clear status after delay
-      setTimeout(() => setSaveStatus(""), 3000)
+      setTimeout(() => setSaveStatus(""), 4000)
     } catch (error) {
       setSaveStatus(`Error saving snap point: ${error}`)
     }
@@ -817,6 +825,48 @@ export function VisualSnapPointEditor({ component, onSnapPointsUpdated, onClose 
     } catch (error) {
       console.error("Error deleting snap point:", error)
       setSaveStatus(`Error deleting snap point: ${error}`)
+    }
+  }
+
+  const handleDuplicateComponent = async () => {
+    if (!confirm(`Create a copy of "${safeComponent.name}" with all current snap points?`)) return
+
+    try {
+      // Create a new component with all current snap points
+      const duplicatedComponent: ComponentData = {
+        ...safeComponent,
+        id: `component-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        name: `${safeComponent.name} (Copy)`,
+        snapPoints: snapPoints.filter(isValidSnapPoint).map(sp => ({
+          ...sp,
+          id: `snap-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        })),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }
+
+      console.log(`🔄 DUPLICATING COMPONENT:`, {
+        originalId: safeComponent.id,
+        originalName: safeComponent.name,
+        duplicateId: duplicatedComponent.id,
+        duplicateName: duplicatedComponent.name,
+        snapPointsCount: duplicatedComponent.snapPoints?.length || 0
+      })
+
+      // Save the duplicated component to database
+      if (typeof db.saveComponent === "function") {
+        await db.saveComponent(duplicatedComponent)
+        setSaveStatus(`✅ Component duplicated successfully! New component "${duplicatedComponent.name}" created with ${duplicatedComponent.snapPoints?.length || 0} snap points.`)
+      } else {
+        setSaveStatus("❌ Failed to save duplicated component - database unavailable")
+      }
+
+      setTimeout(() => setSaveStatus(""), 4000)
+    } catch (error) {
+      console.error("Error duplicating component:", error)
+      setSaveStatus(`❌ Error duplicating component: ${error}`)
     }
   }
 
@@ -864,7 +914,15 @@ export function VisualSnapPointEditor({ component, onSnapPointsUpdated, onClose 
             </Button>
           </div>
 
-          <div className="absolute top-4 right-4 z-10">
+          <div className="absolute top-4 right-4 z-10 space-x-2 flex">
+            <Button 
+              onClick={handleDuplicateComponent} 
+              variant="outline" 
+              size="sm"
+              title="Create a copy of this component with all current snap points"
+            >
+              📋 Duplicate
+            </Button>
             <Button onClick={onClose} variant="outline" size="sm">
               <X className="w-4 h-4" />
             </Button>
@@ -890,7 +948,10 @@ export function VisualSnapPointEditor({ component, onSnapPointsUpdated, onClose 
           <div className="p-4 space-y-4">
             <div>
               <h3 className="font-medium text-lg">{safeComponent.name || "Component"}</h3>
-              <p className="text-sm text-gray-600">Snap Point Editor</p>
+              <p className="text-sm text-gray-600">Snap Point Editor - Editing Existing Component</p>
+              <p className="text-xs text-blue-600 bg-blue-50 p-2 rounded mt-2">
+                📝 Changes are saved to the existing component. Use "Duplicate" button if you want to create a copy.
+              </p>
             </div>
 
             {saveStatus && (

@@ -147,6 +147,8 @@ function FormModelPreview({ modelUrl }: { modelUrl: string }) {
 }
 
 export function ComponentForm({ onComponentSaved, editingComponent }: ComponentFormProps) {
+  const [saveStatus, setSaveStatus] = useState<string>("")
+  
   const form = useForm<ComponentFormValues>({
     resolver: zodResolver(componentFormSchema),
     defaultValues: {
@@ -183,6 +185,10 @@ export function ComponentForm({ onComponentSaved, editingComponent }: ComponentF
 
     onComponentSaved(componentData);
     
+    // Show success message
+    const successMessage = editingComponent ? "Component updated successfully!" : "Component created successfully!"
+    setSaveStatus(successMessage)
+    
     toast({
       title: editingComponent ? "Component updated" : "Component created",
     });
@@ -190,10 +196,18 @@ export function ComponentForm({ onComponentSaved, editingComponent }: ComponentF
     if (!editingComponent) {
       form.reset();
     }
+
+    // Clear success message after 3 seconds
+    setTimeout(() => setSaveStatus(""), 3000)
   }
 
   return (
     <Form {...form}>
+      {saveStatus && (
+        <div className="mb-4 text-sm p-3 rounded-lg bg-green-100 border border-green-200 text-green-800 font-medium">
+          ✅ {saveStatus}
+        </div>
+      )}
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
         <FormField
           control={form.control}
